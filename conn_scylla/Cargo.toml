@@ -1,0 +1,10 @@
+[package]
+name = "conn_scylla"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = {path = "../common"}
+conn = {path = "../conn"}
+futures = "0.3.31"
+scylla = "0.15.1"
