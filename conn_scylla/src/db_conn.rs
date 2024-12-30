@@ -34,7 +34,7 @@ impl ScyllaCommonConnection {
         let feature = builder.build();
         match block_on(feature){
             Ok(ok) => Ok(ScyllaCommonConnection{session : ok}),
-            Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!(err.to_string())))
         }
     }
 }
@@ -60,7 +60,8 @@ impl CommonConnection for ScyllaCommonConnection {
                 CommonValue::Double(f) => Some(f),
                 CommonValue::String(s) => Some(s),
                 CommonValue::Bool(b) => Some(b),
-                CommonValue::Null => None
+                CommonValue::Null => None,
+                CommonValue::BigInt(bi) => Some(bi)
             };
             acc.push(p);
             acc

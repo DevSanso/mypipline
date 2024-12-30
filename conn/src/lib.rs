@@ -1,9 +1,10 @@
 use std::error::Error;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum CommonValue {
     Double(f64),
     Int(i32),
+    BigInt(i64),
     String(String),
     Binrary(Vec<u8>),
     Bool(bool),

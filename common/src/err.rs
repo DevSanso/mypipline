@@ -12,13 +12,13 @@ macro_rules! impl_error {
 
         impl Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "cause {} : {}\n", self.0, self.1);
+                let _ = write!(f, "cause {} : {}\n", self.0, self.1);
 
                 let mut ptr = &self.2;
                 let mut i = 0;
                 while ptr.is_some() {
                     let d = ptr.as_ref().unwrap();
-                    write!(f, "    {} at {}\n", i, d.0.to_string());
+                    let _ = write!(f, "    {} at {}\n", i, d.0.to_string());
                     ptr = &d.1;
                     i += 1;
                 }

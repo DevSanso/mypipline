@@ -1,10 +1,3 @@
-use std::error::Error;
-
-use common::err::define as err_def;
-use common::err::make_err_msg;
-use conn::CommonValue;
-use crate::types::{Response};
-
 macro_rules! cast_response_data {
     ($idx:expr, $typ_vec:expr, $row_cols :expr) => {
         {
@@ -33,12 +26,33 @@ macro_rules! cast_response_data {
                 }
             };
 
-            let cast_cql_val_to_comm_int_value = |cql_value : &'_ CqlValue| {
-                let opt = cql_value.as_int();
+            let cast_cql_val_to_comm_int_value = |t : &'_ ColumnType, cql_value : &'_ CqlValue| {
+                match t {
+                    ColumnType::Int => {
+                        let opt = cql_value.as_int();
+                        if opt.is_none() {
+                            CommonValue::Null
+                        }else {
+                            CommonValue::Int(opt.unwrap())
+                        }
+                    },
+                    ColumnType::TinyInt => {
+                        let opt = cql_value.as_tinyint();
+                        if opt.is_none() {
+                            CommonValue::Null
+                        }else {
+                            CommonValue::Int(opt.unwrap() as i32)
+                        }
+                    },
+                    _ => CommonValue::Null
+                }
+            };
+            let cast_cql_val_to_comm_bigint_value = |cql_value : &'_ CqlValue| {
+                let opt = cql_value.as_bigint();
                 if opt.is_none() {
                     CommonValue::Null
                 }else {
-                    CommonValue::Int(opt.unwrap())
+                    CommonValue::BigInt(opt.unwrap())
                 }
             };
             let cast_cql_val_to_comm_float_value = |cql_value : &'_ CqlValue| {
@@ -77,7 +91,8 @@ macro_rules! cast_response_data {
             let cql_value = get_row_data()?;
 
             let d = match $typ_vec[$idx] {
-               ColumnType::Int => cast_cql_val_to_comm_int_value(cql_value),
+               ColumnType::Int | ColumnType::TinyInt => cast_cql_val_to_comm_int_value($typ_vec[$idx],cql_value),
+               ColumnType::BigInt => cast_cql_val_to_comm_bigint_value(cql_value),
                ColumnType::Boolean => cast_cql_val_to_comm_bool_value(cql_value),
                ColumnType::Blob => cast_cql_val_to_comm_blob_value(cql_value),
                ColumnType::Text => cast_cql_val_to_comm_text_value(cql_value),
