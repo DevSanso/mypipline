@@ -6,18 +6,18 @@ use futures::executor::block_on;
 use scylla::Session;
 use scylla::serialize::value::SerializeValue;
 
-use conn::{CommonConnection, CommonValue, CommonExecuteResultSet, CommonConnectionInfo};
+use conn::{CommonSqlConnection, CommonValue, CommonSqlExecuteResultSet, CommonSqlConnectionInfo};
 use scylla::SessionBuilder;
 use crate::types::Response;
 use common::err::define as err_def;
 use common::err::make_err_msg;
 use crate::db_conn::utils::cast_response_data;
 
-pub struct ScyllaCommonConnection {
+pub struct ScyllaCommonSqlConnection {
     session : Session
 }
-impl ScyllaCommonConnection {
-    pub(crate) fn new(infos : Vec<CommonConnectionInfo>) -> Result<Self, Box<dyn Error>> {
+impl ScyllaCommonSqlConnection {
+    pub(crate) fn new(infos : Vec<CommonSqlConnectionInfo>) -> Result<Self, Box<dyn Error>> {
         if infos.len() <= 0 {
             return Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("scylla connection info array size of zero")))
         }
@@ -33,19 +33,19 @@ impl ScyllaCommonConnection {
 
         let feature = builder.build();
         match block_on(feature){
-            Ok(ok) => Ok(ScyllaCommonConnection{session : ok}),
+            Ok(ok) => Ok(ScyllaCommonSqlConnection{session : ok}),
             Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!(err.to_string())))
         }
     }
 }
-impl CommonConnection for ScyllaCommonConnection {
-    fn execute(&mut self, query : &'_ str, param : Vec<CommonValue>) -> Result<CommonExecuteResultSet, Box<dyn Error>> {
+impl CommonSqlConnection for ScyllaCommonSqlConnection {
+    fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<CommonSqlExecuteResultSet, Box<dyn Error>> {
         let prepare = match block_on(self.session.prepare(query)) {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!(err.to_string())))
         }?;
         
-        let mut result = CommonExecuteResultSet::default();
+        let mut result = CommonSqlExecuteResultSet::default();
 
         let mut typ = Vec::new();
         for col in prepare.get_result_set_col_specs() {

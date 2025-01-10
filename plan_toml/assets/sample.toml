@@ -1,0 +1,14 @@
+[collect.sql]
+dbtype = 'postgres'
+query = 'select 1 as val'
+fetch = {'val' = {val_type = 'int', idx = 1}}
+
+
+[send.rest]
+url = 'https://localhost:8080/send'
+
+send= '''
+{
+    'val' : #1
+}
+'''

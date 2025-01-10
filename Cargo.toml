@@ -1,2 +1,2 @@
 [workspace]
-members = [ "common","conn", "conn_postgres", "conn_scylla"]
+members = [ "common","conn", "conn_postgres", "conn_restapi", "conn_scylla", "interpreter", "interpreter_lua", "plan", "plan_toml"]

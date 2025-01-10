@@ -1,0 +1,9 @@
+[package]
+name = "conn_restapi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = {path = "../common"}
+conn = {path = "../conn"}
+ureq = "2.12.1"

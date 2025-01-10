@@ -1,13 +1,13 @@
 use std::error::Error;
 
-use conn::CommonExecuteResultSet;
+use conn::CommonSqlExecuteResultSet;
 use postgres::types::ToSql;
 use postgres::types::Type;
 
 use common::err::define as err_def;
 use common::err::make_err_msg;
 use common::logger::error;
-use conn::{CommonConnection, CommonConnectionInfo, CommonValue};
+use conn::{CommonSqlConnection, CommonSqlConnectionInfo, CommonValue};
 
 pub struct PostgresConnection {
     client : postgres::Client   
@@ -30,7 +30,7 @@ impl PostgresConnection {
         format!("postgresql://{username}:{password}@{addr}/{db_name}?connect_timeout=60")
     }
 
-    pub(crate) fn new(info : CommonConnectionInfo) -> Result<Self, Box<dyn Error>> {
+    pub(crate) fn new(info : CommonSqlConnectionInfo) -> Result<Self, Box<dyn Error>> {
         let url = Self::create_pg_url(&info.user, &info.password, &info.addr, &info.db_name);
 
         let conn = match postgres::Client::connect(url.as_str(), postgres::NoTls) {
@@ -44,8 +44,8 @@ impl PostgresConnection {
     }
 }
 
-impl CommonConnection for PostgresConnection {
-    fn execute(&mut self, query : &'_ str, param : Vec<conn::CommonValue>) -> Result<conn::CommonExecuteResultSet, Box<dyn std::error::Error>> {
+impl CommonSqlConnection for PostgresConnection {
+    fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<conn::CommonSqlExecuteResultSet, Box<dyn std::error::Error>> {
         let pg_param :  Vec<&(dyn ToSql + Sync)> = param.iter().fold(Vec::new(), |mut acc,x| {
             match x {
                 CommonValue::BigInt(i) => acc.push(i),
@@ -72,7 +72,7 @@ impl CommonConnection for PostgresConnection {
             ))
         }?;
 
-        let mut ret = CommonExecuteResultSet::default();
+        let mut ret = CommonSqlExecuteResultSet::default();
 
         if rows.len() <= 0 {
             return Ok(ret);
