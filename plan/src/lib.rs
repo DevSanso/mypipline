@@ -1,5 +1,6 @@
 mod collect;
 mod send;
+pub(crate) mod utils;
 
 pub enum PlanType {
     RestApi,

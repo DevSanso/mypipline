@@ -17,7 +17,8 @@ impl_err_mod!(connection, [
 
 impl_err_mod!(system, [
     (OverflowSizeError, "overflow size error", "check array size or range size"),
-    (ApiCallError, "system api call function is return error", "check server code")
+    (ApiCallError, "system api call function is return error", "check server code"),
+    (NoSupportError, "not support is function", "check server code and data")
 ]);
 
 impl_err_mod!(no_category, [

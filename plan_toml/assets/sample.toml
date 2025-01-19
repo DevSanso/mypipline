@@ -1,4 +1,6 @@
 [collect.sql]
+id = ""
+connect_name = ""
 dbtype = 'postgres'
 query = 'select 1 as val'
 fetch = {'val' = {val_type = 'int', idx = 1}}

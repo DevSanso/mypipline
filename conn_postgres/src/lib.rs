@@ -6,7 +6,7 @@ use db_conn::PostgresConnection;
 use common::collection::pool::get_thread_safe_pool;
 use conn::{CommonSqlConnection, CommonSqlConnectionInfo, CommonSqlConnectionPool};
 
-pub fn create_pg_conn_pool(info : CommonSqlConnectionInfo, alloc_size : usize) -> CommonSqlConnectionPool {
+pub fn create_pg_conn_pool(name : String, info : CommonSqlConnectionInfo, alloc_size : usize) -> CommonSqlConnectionPool {
     let gen_fn : Box<dyn Fn(()) -> Option<Box<dyn CommonSqlConnection>>> = (|info : CommonSqlConnectionInfo| {
         let global_info = info;
 
@@ -25,5 +25,5 @@ pub fn create_pg_conn_pool(info : CommonSqlConnectionInfo, alloc_size : usize) -
         Box::new(real_fn)
     })(info);
 
-    get_thread_safe_pool("scylla".to_string(), gen_fn, alloc_size)
+    get_thread_safe_pool(name, gen_fn, alloc_size)
 }
