@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 common = {path = "../common"}
 conn = {path = "../conn"}
+serde = {features = ["derive"], version = "1.0.217"}

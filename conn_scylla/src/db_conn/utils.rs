@@ -21,7 +21,7 @@ macro_rules! cast_response_data {
                     13 => Ok(&$row_cols.13),
                     14 => Ok(&$row_cols.14),
                     _ =>  Err(err_def::system::OverflowSizeError::new(make_err_msg!(
-                        format!("cast_response_data - get_row_data - Reponse Max Size over")
+                        "{}", "cast_response_data - get_row_data - Reponse Max Size over"
                     )))
                 }
             };
@@ -99,7 +99,7 @@ macro_rules! cast_response_data {
                ColumnType::Float => cast_cql_val_to_comm_float_value(cql_value),
                
                _ => return Err(err_def::connection::ResponseScanError::new(
-                    make_err_msg!(format!("copy_reponse_data - can't cast data type:{:?} idx:{}", $typ_vec[$idx], $idx))
+                    make_err_msg!("copy_reponse_data - can't cast data type:{:?} idx:{}", $typ_vec[$idx], $idx)
                ))
             };
             d

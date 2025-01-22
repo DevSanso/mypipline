@@ -34,7 +34,7 @@ impl ScyllaCommonSqlConnection {
         let feature = builder.build();
         match block_on(feature){
             Ok(ok) => Ok(ScyllaCommonSqlConnection{session : ok}),
-            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err)))
         }
     }
 }
@@ -42,7 +42,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
     fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<CommonSqlExecuteResultSet, Box<dyn Error>> {
         let prepare = match block_on(self.session.prepare(query)) {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!("{}", err)))
         }?;
         
         let mut result = CommonSqlExecuteResultSet::default();
@@ -69,17 +69,17 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
 
         let query_result = match block_on(self.session.execute_unpaged(&prepare, real_param)) {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!("{}", err)))
         }?;
         
         let rows = match query_result.into_rows_result() {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
         }?;
 
         let mut row_iter = match rows.rows::<Response>(){
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
         }?;
 
         let col_count = typ.len();
@@ -92,7 +92,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
         while let row_scan_ret = row_iter.next().transpose() {
             let row_opt = match row_scan_ret {
                 Ok(ok) => Ok(ok),
-                Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!(err.to_string())))
+                Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
             }?;
 
             let row = match row_opt {

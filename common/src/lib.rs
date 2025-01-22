@@ -9,10 +9,6 @@ pub mod logger {
 
 pub mod parser {
     pub mod serde {
-        pub mod serde {
-            pub use serde::*;
-        }
-
         pub mod toml {
             pub use toml::*;
         }

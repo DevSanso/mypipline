@@ -35,7 +35,7 @@ impl PostgresConnection {
 
         let conn = match postgres::Client::connect(url.as_str(), postgres::NoTls) {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!(err.to_string())))
+            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err.to_string())))
         }?;
 
         Ok(PostgresConnection {
@@ -55,7 +55,7 @@ impl CommonSqlConnection for PostgresConnection {
                 CommonValue::String(t) => acc.push(t),
                 _ => {
                     let err_error = err_def::system::ApiCallError::new(make_err_msg!(
-                        format!("not support type({:?}), return null", x)
+                        "not support type({:?}), return null", x
                     ));
                     error!("{}", err_error);
                     acc.push(&Option::<i64>::None)
@@ -68,7 +68,7 @@ impl CommonSqlConnection for PostgresConnection {
         let rows = match self.client.query(query, pg_param.as_slice()) {
             Ok(ok) => Ok(ok),
             Err(err) =>  Err(err_def::connection::CommandRunError::new(
-                make_err_msg!(err.to_string())
+                make_err_msg!("{}",err.to_string())
             ))
         }?;
 
@@ -95,7 +95,7 @@ impl CommonSqlConnection for PostgresConnection {
                     &Type::BYTEA => Ok(get_pg_data!(row, col_idx, Vec<u8>, CommonValue, Binrary)),
                     _ => {
                         Err(err_def::connection::ResponseScanError::new(
-                            make_err_msg!(format!("not support this type({}), return NULL", cols_t[col_idx]))
+                            make_err_msg!("not support this type({}), return NULL", cols_t[col_idx])
                         ))
                     }
                 }?;

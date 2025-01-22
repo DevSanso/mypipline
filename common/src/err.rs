@@ -96,13 +96,10 @@ pub use func;
 
 #[macro_export]
 macro_rules! make_err_msg {
-    ($msg:expr) => {
-        {
-            use common::err::func;
-            format!("{} [{}:{}] : {}", func!(), file!(), line!(), $msg)
-
-        }
-    };
+    ($($arg:tt)+) => {{
+        use common::err::func;
+        format!("{} [{}:{}] : {}", func!(), file!(), line!(), format!($($arg)+))
+    }};
 }
 pub use make_err_msg;
 
