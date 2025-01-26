@@ -3,7 +3,9 @@ type = "sql"
 
 [collect.sql]
 dbtype = 'postgres'
-connection = {ip = '127.0.0.1', port=5432, user='postgres', password='postgres', dbname='postgres'}
+connection = [
+     {ip = '127.0.0.1', port=5432, user='postgres', password='postgres', dbname='postgres'}
+]
 
 query = 'select 1 as val'
 fetch = {'val' = {val_type = 'int'}}
@@ -13,5 +15,7 @@ type = "sql"
 
 [send.sql]
 dbtype = 'postgres'
-connection = {ip = '127.0.0.1', port=5432, user='postgres', password='postgres', dbname='postgres'}
+connection = [
+     {ip = '127.0.0.1', port=5432, user='postgres', password='postgres', dbname='postgres'}
+]
 query = 'select #{val}'

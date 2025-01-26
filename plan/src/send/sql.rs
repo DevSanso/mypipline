@@ -5,14 +5,14 @@ use conn::{CommonSqlConnectionPool, CommonValue};
 use crate::send::SendPlan;
 use crate::utils::sql::{change_sql_to_num_bind_support_sql, change_sql_to_question_mark_bind_support_sql};
 
-pub struct SqlSendPlan<'a> {
+pub struct SqlSendPlan {
     db_type : &'static str,
-    query : &'a str,
-    db_pool : &'a CommonSqlConnectionPool
+    query : String,
+    db_pool : CommonSqlConnectionPool
 }
 
-impl<'a> SqlSendPlan<'a> {
-    pub fn new(db_type : &'static str, query : &'a str, p : &'a CommonSqlConnectionPool) -> Self {
+impl SqlSendPlan {
+    pub fn new(db_type : &'static str, query : String, p : CommonSqlConnectionPool) -> Self {
         SqlSendPlan { db_type: db_type, query: query, db_pool: p }
     }
 
@@ -23,19 +23,19 @@ impl<'a> SqlSendPlan<'a> {
         });
 
         match self.db_type {
-            "scylla" | "sqlite" => change_sql_to_question_mark_bind_support_sql(self.query, &ks),
-            _ => change_sql_to_num_bind_support_sql(self.query, &ks),
+            "scylla" | "sqlite" => change_sql_to_question_mark_bind_support_sql(self.query.as_str(), &ks),
+            _ => change_sql_to_num_bind_support_sql(self.query.as_str(), &ks),
         }
     }
 }
 
-impl<'a> Plan for SqlSendPlan<'a> {
+impl Plan for SqlSendPlan {
     fn plan_type(&self) -> PlanType {
         PlanType::SQL(self.db_type)
     }
 }
 
-impl<'a> SendPlan for SqlSendPlan<'a> {
+impl SendPlan for SqlSendPlan {
     fn do_send(&mut self, param : HashMap<String, Vec<CommonValue>>) -> Result<(), Box<dyn std::error::Error>> {
         let query = self.get_bind_parm_query(&param);
 

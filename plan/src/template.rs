@@ -23,7 +23,7 @@ pub struct SqlCollectPlanTemplate {
     #[serde( alias = "db_type")]
     pub dbtype : String, 
     #[serde( alias = "connection")]
-    pub connection : SqlDbConnection,
+    pub connection : Vec<SqlDbConnection>,
     #[serde( alias = "query")]
     pub query : String,
 
@@ -36,7 +36,7 @@ pub struct SqlSendPlanTemplate {
     #[serde( alias = "db_type")]
     pub dbtype : String, 
     #[serde( alias = "connection")]
-    pub connection : SqlDbConnection,
+    pub connection : Vec<SqlDbConnection>,
     #[serde( alias = "query")]
     pub query : String
 }
@@ -58,6 +58,8 @@ pub struct SendPlanTemplate {
 
 #[derive(serde::Deserialize, Debug)]
 pub struct PlanTemplate{
+    #[serde(skip)]
+    pub name : String,
     #[serde( alias = "collect")]
     pub collect : CollectPlanTemplate, 
     #[serde( alias = "send")]

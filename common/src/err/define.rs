@@ -19,7 +19,9 @@ impl_err_mod!(system, [
     (OverflowSizeError, "overflow size error", "check array size or range size"),
     (ApiCallError, "system api call function is return error", "check server code"),
     (NoSupportError, "not support is function", "check server code and data"),
-    (ParsingError, "failed parsing data", "check data")
+    (ParsingError, "failed parsing data", "check data"),
+    (CriticalError, "critical error", "system critial error, check os status and code"),
+    (NoDataError, "not exists data error", "check data")
 ]);
 
 impl_err_mod!(no_category, [

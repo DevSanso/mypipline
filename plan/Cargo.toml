@@ -5,5 +5,9 @@ edition = "2021"
 
 [dependencies]
 common = {path = "../common"}
+
 conn = {path = "../conn"}
+conn_postgres = {path = "../conn_postgres"}
+conn_scylla = {path = "../conn_scylla"}
+
 serde = {features = ["derive"], version = "1.0.217"}

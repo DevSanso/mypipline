@@ -4,15 +4,15 @@ use crate::*;
 use conn::{CommonSqlConnectionPool, CommonValue};
 use crate::collect::CollectPlan;
 
-pub struct SqlCollectPlan<'a> {
+pub struct SqlCollectPlan {
     db_type : &'static str,
-    query : &'a str,
-    fetch_define : HashSet<&'a str>,
-    db_pool : &'a CommonSqlConnectionPool
+    query : String,
+    fetch_define : HashSet<String>,
+    db_pool : CommonSqlConnectionPool
 }
 
-impl<'a> SqlCollectPlan<'a> {
-    pub fn new(db_type : &'static str, query : &'a str, fetch_define : HashSet<&'a str>, p : &'a CommonSqlConnectionPool) -> Self {
+impl SqlCollectPlan {
+    pub fn new(db_type : &'static str, query : String, fetch_define : HashSet<String>, p : CommonSqlConnectionPool) -> Self {
         SqlCollectPlan {
             db_type,
             query,
@@ -22,13 +22,13 @@ impl<'a> SqlCollectPlan<'a> {
     }
 }
 
-impl<'a> Plan for SqlCollectPlan<'a> {
+impl Plan for SqlCollectPlan {
     fn plan_type(&self) -> PlanType {
         PlanType::SQL(self.db_type)
     }
 }
 
-impl<'a> CollectPlan for SqlCollectPlan<'a> {
+impl CollectPlan for SqlCollectPlan {
     fn do_collect(&mut self) -> Result<HashMap<String, Vec<CommonValue>>, Box<dyn std::error::Error>> {
         let recv_data = {
             let mut conn_item = self.db_pool.get_owned(())?;
