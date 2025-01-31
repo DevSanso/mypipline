@@ -45,6 +45,10 @@ pub struct SqlSendPlanTemplate {
 pub struct CollectPlanTemplate {
     #[serde( alias = "type")]
     pub collect_type : String,
+    #[serde( alias = "interval")]
+    pub interval : u64,
+    #[serde( alias = "interval_is_system")]
+    pub interval_is_system : bool,
     pub sql : Option<SqlCollectPlanTemplate>
 
 }

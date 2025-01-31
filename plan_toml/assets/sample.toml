@@ -1,5 +1,7 @@
 [collect]
 type = "sql"
+interval = 5
+interval_is_system = true
 
 [collect.sql]
 dbtype = 'postgres'

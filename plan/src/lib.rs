@@ -2,12 +2,8 @@ mod collect;
 mod send;
 pub mod template;
 
-
-
 use template::PlanTemplate;
-use crate::{collect::CollectPlan, send::SendPlan};
-
-
+pub use crate::{collect::CollectPlan, send::SendPlan};
 
 pub(crate) mod utils;
 
@@ -19,8 +15,6 @@ pub enum PlanType {
 pub trait Plan {
     fn plan_type(&self) -> PlanType;
 }
-
-
 
 pub fn make_plans(plan_template : PlanTemplate) -> Result<(Box<dyn CollectPlan>, Box<dyn SendPlan>), Box<dyn std::error::Error>> {
     let collect_plan = crate::collect::new_collect_plan(

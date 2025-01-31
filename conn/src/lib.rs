@@ -23,6 +23,7 @@ pub struct CommonSqlExecuteResultSet {
 pub trait CommonSqlConnection {
     //fn get_current_time(&mut self) -> Result<std::time::Duration, Box<dyn Error>>;
     fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<CommonSqlExecuteResultSet, Box<dyn Error>>;
+    fn get_current_time(&mut self) -> Result<std::time::Duration, Box<dyn Error>>;
 }
 
 #[derive(Debug,Clone)]

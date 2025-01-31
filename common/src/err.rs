@@ -101,5 +101,14 @@ macro_rules! make_err_msg {
         format!("{} [{}:{}] : {}", func!(), file!(), line!(), format!($($arg)+))
     }};
 }
+
+
+macro_rules! make_err_msg_crate {
+    ($($arg:tt)+) => {{
+        use crate::err::func;
+        format!("{} [{}:{}] : {}", func!(), file!(), line!(), format!($($arg)+))
+    }};
+}
 pub use make_err_msg;
+pub(crate) use make_err_msg_crate;
 

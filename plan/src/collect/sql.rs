@@ -8,16 +8,21 @@ pub struct SqlCollectPlan {
     db_type : &'static str,
     query : String,
     fetch_define : HashSet<String>,
-    db_pool : CommonSqlConnectionPool
+    db_pool : CommonSqlConnectionPool,
+
+    interval : (u64, bool)
 }
 
+unsafe impl Send for SqlCollectPlan {}
+
 impl SqlCollectPlan {
-    pub fn new(db_type : &'static str, query : String, fetch_define : HashSet<String>, p : CommonSqlConnectionPool) -> Self {
+    pub fn new(db_type : &'static str, query : String, fetch_define : HashSet<String>, interval : (u64, bool), p : CommonSqlConnectionPool) -> Self {
         SqlCollectPlan {
             db_type,
             query,
             fetch_define,
-            db_pool : p
+            db_pool : p,
+            interval
         }
     }
 }
@@ -54,5 +59,21 @@ impl CollectPlan for SqlCollectPlan {
         }
 
         Ok(ret)
+    }
+    
+    fn is_interval(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
+        let ret = if self.interval.1 {
+            let recv_data = {
+                let mut conn_item = self.db_pool.get_owned(())?;
+                let conn = conn_item.get_value();
+                conn.get_current_time()
+            }?;
+            recv_data.as_secs() % self.interval.0 == 0
+        } else {
+            let diff = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
+            diff.as_secs() % self.interval.0 == 0
+        };
+
+        todo!()
     }
 }

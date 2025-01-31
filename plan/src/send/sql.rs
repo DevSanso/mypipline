@@ -11,6 +11,8 @@ pub struct SqlSendPlan {
     db_pool : CommonSqlConnectionPool
 }
 
+unsafe impl Send for SqlSendPlan {}
+
 impl SqlSendPlan {
     pub fn new(db_type : &'static str, query : String, p : CommonSqlConnectionPool) -> Self {
         SqlSendPlan { db_type: db_type, query: query, db_pool: p }

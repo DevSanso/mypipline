@@ -8,8 +8,9 @@ use conn::CommonValue;
 
 use crate::utils::sql as utils_sql;
 
-pub trait CollectPlan {
+pub trait CollectPlan : Send {
     fn do_collect(&mut self) -> Result<HashMap<String, Vec<CommonValue>>, Box<dyn Error>>;
+    fn is_interval(&mut self) -> Result<bool, Box<dyn Error>>;
 }
 
 fn new_sql_collect_plan(name : String, data : &'_ crate::template::CollectPlanTemplate) -> Result<Box<dyn CollectPlan>, Box<dyn std::error::Error>> { 
@@ -32,7 +33,7 @@ fn new_sql_collect_plan(name : String, data : &'_ crate::template::CollectPlanTe
         "postgres"
     } else {
         "scylla"
-    }, sql_data.query.clone(), set, p)))
+    }, sql_data.query.clone(), set, (data.interval, data.interval_is_system), p)))
 }
 
 pub(crate) fn new_collect_plan(name : String, data : &'_ crate::template::CollectPlanTemplate) -> Result<Box<dyn CollectPlan>, Box<dyn std::error::Error>> {

@@ -8,7 +8,7 @@ use conn::CommonValue;
 
 use crate::utils::sql as utils_sql;
 
-pub trait SendPlan {
+pub trait SendPlan : Send {
     fn do_send(&mut self, param : HashMap<String, Vec<CommonValue>>) -> Result<(), Box<dyn Error>>;
 }
 

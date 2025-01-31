@@ -110,4 +110,20 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
 
         Ok(result)
     }
+
+    fn get_current_time(&mut self) -> Result<std::time::Duration, Box<dyn Error>> {
+        let ret = self.execute("SELECT CAST(toUnixTimestamp(now()) AS BIGINT) AS unix_timestamp  FROM system.local;", &[])?;
+
+        if ret.cols_data.len() <= 0 && ret.cols_data[0].len() <= 0 {
+            return Err(err_def::connection::ResponseScanError::new(make_err_msg!("not exists now return data")));
+        }
+
+        let data = match ret.cols_data[0][0] {
+            CommonValue::BigInt(bi) => bi,
+            CommonValue::Int(i) => i as i64,
+            _ => 0
+        };
+
+        Ok(std::time::Duration::from_secs(data as u64))
+    }
 }
