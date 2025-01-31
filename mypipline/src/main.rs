@@ -91,6 +91,13 @@ fn main() {
     }
 
     let plans = plans_ret.unwrap();
+
+    let plan_run_ret = plan_thread::start_plan_threads(plans);
     
-    println!("Hello, world!");
+    if plan_run_ret.is_err() {
+        common::logger::error!("{}", plan_run_ret.unwrap_err());    
+        process::exit(2);
+    }
+
+    println!("done");
 }

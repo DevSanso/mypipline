@@ -82,11 +82,18 @@ pub(crate) fn start_plan_threads(vp : Vec<PlanTemplate>) -> Result<(), Box<dyn E
         Err(e) => Err(err_def::system::ParsingError::new(make_err_msg!("{}", e)))
     }?;
 
-    for p in plans {
-        std::thread::spawn( move || {
-            plan_entry(p);
-        });
-    }
+    std::thread::scope(|s| {
+        for p in plans {
+            s.spawn(|| {
+                plan_entry(p);
+            });
+        }
+
+        loop {
+            //do etc logic
+            std::thread::sleep(time::Duration::from_secs(30));
+        }
+    });
 
     Ok(())
 }
