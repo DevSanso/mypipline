@@ -2,20 +2,23 @@ mod utils;
 
 use std::error::Error;
 
-use futures::executor::block_on;
+use scylla::QueryRowsResult;
 use scylla::Session;
 use scylla::serialize::value::SerializeValue;
 
+
 use conn::{CommonSqlConnection, CommonValue, CommonSqlExecuteResultSet, CommonSqlConnectionInfo};
 use scylla::SessionBuilder;
-use crate::types::Response;
+use crate::types as res_type;
 use common::err::define as err_def;
 use common::err::make_err_msg;
-use crate::db_conn::utils::cast_response_data;
-
+use crate::db_conn::utils::feature_block;
+use crate::db_conn::utils::ScyllaFetcher;
 pub struct ScyllaCommonSqlConnection {
     session : Session
 }
+
+
 impl ScyllaCommonSqlConnection {
     pub(crate) fn new(infos : Vec<CommonSqlConnectionInfo>) -> Result<Self, Box<dyn Error>> {
         if infos.len() <= 0 {
@@ -32,7 +35,9 @@ impl ScyllaCommonSqlConnection {
         }
 
         let feature = builder.build();
-        match block_on(feature){
+        let block = feature_block!(feature);
+
+        match block {
             Ok(ok) => Ok(ScyllaCommonSqlConnection{session : ok}),
             Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err)))
         }
@@ -40,7 +45,9 @@ impl ScyllaCommonSqlConnection {
 }
 impl CommonSqlConnection for ScyllaCommonSqlConnection {
     fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<CommonSqlExecuteResultSet, Box<dyn Error>> {
-        let prepare = match block_on(self.session.prepare(query)) {
+        let feature = self.session.prepare(query);
+
+        let prepare = match feature_block!(feature) {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!("{}", err)))
         }?;
@@ -66,8 +73,8 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
             acc.push(p);
             acc
         });
-
-        let query_result = match block_on(self.session.execute_unpaged(&prepare, real_param)) {
+        let feature = self.session.execute_unpaged(&prepare, real_param);
+        let query_result = match feature_block!(feature) {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!("{}", err)))
         }?;
@@ -76,37 +83,13 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
         }?;
-
-        let mut row_iter = match rows.rows::<Response>(){
-            Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
-        }?;
-
         let col_count = typ.len();
 
-        if col_count == 0 {
-            return Ok(result);
-        }
+        let mut fetcher = ScyllaFetcher::new(&rows, &typ);
 
-        #[allow(irrefutable_let_patterns)]
-        while let row_scan_ret = row_iter.next().transpose() {
-            let row_opt = match row_scan_ret {
-                Ok(ok) => Ok(ok),
-                Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
-            }?;
-
-            let row = match row_opt {
-                Some(s) => s,
-                None => break
-            };
-            let mut column_vec = Vec::new();
-            for i in 0..col_count {
-                let casted = cast_response_data!(i, &typ, &row);
-                column_vec.push(casted);
-            }    
-
-            result.cols_data.push(column_vec);
-        }
+        fetcher.fetch(&mut result).map_err(|e| {
+            err_def::connection::ResponseScanError::chain(make_err_msg!(""), e)
+        })?;
 
         Ok(result)
     }

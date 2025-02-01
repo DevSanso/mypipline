@@ -6,5 +6,9 @@ edition = "2021"
 [dependencies]
 common = {path = "../common"}
 conn = {path = "../conn"}
-futures = "0.3.31"
+tokio = {version = "1.43.0", features = ["rt", "rt-multi-thread"]}
 scylla = "0.15.1"
+
+[[test]]
+name = "test_root"
+path = "tests/mod.rs"
