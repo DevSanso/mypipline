@@ -1,21 +1,3 @@
-macro_rules! feature_block {
-    ($feat:expr) => {
-        {
-            use tokio::task::block_in_place;
-
-            let block =block_in_place(||{
-                tokio::runtime::Handle::current().block_on(async {
-                    $feat.await
-                })
-            });
-
-            block
-        }
-    };
-}
-
-pub(super) use feature_block;
-
 use std::error::Error;
 
 use scylla::frame::response::result::{ColumnType,CqlValue};

@@ -5,17 +5,17 @@ use std::error::Error;
 use scylla::QueryRowsResult;
 use scylla::Session;
 use scylla::serialize::value::SerializeValue;
-
+use tokio::runtime::{Builder, Runtime};
 
 use conn::{CommonSqlConnection, CommonValue, CommonSqlExecuteResultSet, CommonSqlConnectionInfo};
 use scylla::SessionBuilder;
 use crate::types as res_type;
 use common::err::define as err_def;
 use common::err::make_err_msg;
-use crate::db_conn::utils::feature_block;
 use crate::db_conn::utils::ScyllaFetcher;
 pub struct ScyllaCommonSqlConnection {
-    session : Session
+    session : Session,
+    rt : Runtime
 }
 
 
@@ -34,11 +34,16 @@ impl ScyllaCommonSqlConnection {
                 .use_keyspace(info.db_name, false);
         }
 
+        let rt = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
         let feature = builder.build();
-        let block = feature_block!(feature);
+        let block = rt.block_on(feature);
 
         match block {
-            Ok(ok) => Ok(ScyllaCommonSqlConnection{session : ok}),
+            Ok(ok) => Ok(ScyllaCommonSqlConnection{session : ok, rt : rt}),
             Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err)))
         }
     }
@@ -47,7 +52,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
     fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<CommonSqlExecuteResultSet, Box<dyn Error>> {
         let feature = self.session.prepare(query);
 
-        let prepare = match feature_block!(feature) {
+        let prepare = match self.rt.block_on(feature) {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!("{}", err)))
         }?;
@@ -73,8 +78,9 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
             acc.push(p);
             acc
         });
+
         let feature = self.session.execute_unpaged(&prepare, real_param);
-        let query_result = match feature_block!(feature) {
+        let query_result = match self.rt.block_on(feature) {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!("{}", err)))
         }?;

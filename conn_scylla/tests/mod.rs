@@ -6,10 +6,6 @@ use conn_scylla::create_scylla_conn_pool;
 #[test]
 pub fn test_scylla_connect() -> Result<(), Box<dyn Error>> {
     logger::init_once("trace", None);
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let _enter = rt.enter();
-
-
 
     let info = CommonSqlConnectionInfo {
         addr : "127.0.0.1:9042".to_string(),
@@ -29,8 +25,7 @@ pub fn test_scylla_connect() -> Result<(), Box<dyn Error>> {
 #[test]
 pub fn test_scylla_get_unix_time() -> Result<(), Box<dyn Error>> {
     logger::init_once("trace", None);
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let _enter = rt.enter();
+
     let info = CommonSqlConnectionInfo {
         addr : "127.0.0.1:9042".to_string(),
         db_name : "system".to_string(),

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 common = {path = "../common"}
 conn = {path = "../conn"}
-tokio = {version = "1.43.0", features = ["rt", "rt-multi-thread"]}
+tokio = {version = "1.43.0"}
 scylla = "0.15.1"
 
 [[test]]
