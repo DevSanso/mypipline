@@ -62,7 +62,17 @@ impl<'a> ScyllaFetcher<'a> {
         if opt.is_none() {
             CommonValue::Null
         }else {
-            CommonValue::Double(opt.unwrap() as f64)
+            CommonValue::Float(opt.unwrap())
+        }
+    }
+
+    #[inline]
+    fn cast_cql_val_to_comm_double_value(cql_value : &'_ CqlValue) -> CommonValue {
+        let opt = cql_value.as_double();
+        if opt.is_none() {
+            CommonValue::Null
+        }else {
+            CommonValue::Double(opt.unwrap())
         }
     }
 
@@ -104,6 +114,7 @@ impl<'a> ScyllaFetcher<'a> {
             ColumnType::Blob => Self::cast_cql_val_to_comm_blob_value(cql_value),
             ColumnType::Text => Self::cast_cql_val_to_comm_text_value(cql_value),
             ColumnType::Float => Self::cast_cql_val_to_comm_float_value(cql_value),
+            ColumnType::Double => Self::cast_cql_val_to_comm_double_value(cql_value),
             
             _ => return Err(err_def::connection::ResponseScanError::new(
                  make_err_msg!("copy_reponse_data - can't cast data type:{:?}", t)

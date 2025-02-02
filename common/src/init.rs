@@ -22,8 +22,13 @@ pub mod logger {
     pub fn init_once(log_level : &'_ str, log_file : Option<&'_ str>) -> &'static Result<(), Box<dyn Error>> {
         LOGGER_INIT_ONCE.call_once(|| {
             let level = convert_str_to_log_level(log_level);
-            let mut ftail = Ftail::new()
-            .console(LevelFilter::Debug);
+            let mut ftail = Ftail::new().datetime_format("%Y-%m-%d %H:%M:%S%.3f");
+            
+            if level == LevelFilter::Trace {
+                ftail = ftail.console(LevelFilter::Trace);
+            } else {
+                ftail = ftail.console(LevelFilter::Debug);
+            }
     
             if log_file.is_some() {
                 let file = log_file.unwrap();
@@ -45,17 +50,16 @@ pub mod logger {
             }
             
             unsafe {
-                if log_file.is_some() {
-                    if level == LevelFilter::Trace {
-                        LOGGER_FILE_LEVEL_IS_TRACE = true;
-                    }
-                };
+                if level == LevelFilter::Trace {
+                    LOGGER_FILE_LEVEL_IS_TRACE = true;
+                }
+
                 LOGGER_INIT_RET = match ftail.init() {
                     Ok(_) => Ok(()),
                     Err(e) => Err(crate::err::define::system::ApiCallError::new(
                         crate::err::make_err_msg_crate!("{}", e)
                     ))
-                };
+                }
             }
         });
         

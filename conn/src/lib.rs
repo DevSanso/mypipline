@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use common::collection::pool::ThreadSafePool;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CommonValue {
     Double(f64),
     Int(i32),
@@ -12,6 +12,7 @@ pub enum CommonValue {
     String(String),
     Binrary(Vec<u8>),
     Bool(bool),
+    Float(f32),
     Null
 }
 

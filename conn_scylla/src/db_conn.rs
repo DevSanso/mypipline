@@ -50,6 +50,8 @@ impl ScyllaCommonSqlConnection {
 }
 impl CommonSqlConnection for ScyllaCommonSqlConnection {
     fn execute(&mut self, query : &'_ str, param : &'_ [CommonValue]) -> Result<CommonSqlExecuteResultSet, Box<dyn Error>> {
+        common::logger::trace!("ScyllaCommonSqlConnection - prepare query:{} param:{:?}", query, param);
+
         let feature = self.session.prepare(query);
 
         let prepare = match self.rt.block_on(feature) {
@@ -73,7 +75,8 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
                 CommonValue::String(s) => Some(s),
                 CommonValue::Bool(b) => Some(b),
                 CommonValue::Null => None,
-                CommonValue::BigInt(bi) => Some(bi)
+                CommonValue::BigInt(bi) => Some(bi),
+                CommonValue::Float(f) => Some(f),
             };
             acc.push(p);
             acc
@@ -84,13 +87,16 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!("{}", err)))
         }?;
+
+        if typ.len() <= 0 {
+            return Ok(result);
+        }
         
         let rows = match query_result.into_rows_result() {
             Ok(ok) => Ok(ok),
             Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
         }?;
-        let col_count = typ.len();
-
+        
         let mut fetcher = ScyllaFetcher::new(&rows, &typ);
 
         fetcher.fetch(&mut result).map_err(|e| {
@@ -101,7 +107,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
     }
 
     fn get_current_time(&mut self) -> Result<std::time::Duration, Box<dyn Error>> {
-        let ret = self.execute("SELECT CAST(toUnixTimestamp(now()) AS BIGINT) AS unix_timestamp  FROM system.local;", &[])?;
+        let ret = self.execute("SELECT CAST(toUnixTimestamp(now()) AS BIGINT) AS unix_timestamp  FROM system.local", &[])?;
 
         if ret.cols_data.len() <= 0 && ret.cols_data[0].len() <= 0 {
             return Err(err_def::connection::ResponseScanError::new(make_err_msg!("not exists now return data")));
