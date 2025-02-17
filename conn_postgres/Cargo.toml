@@ -7,3 +7,7 @@ edition = "2021"
 common = {path = "../common"}
 conn = {path = "../conn"}
 postgres = "0.19.9"
+
+[[test]]
+name = "test_root"
+path = "tests/mod.rs"
