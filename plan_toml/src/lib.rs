@@ -32,3 +32,12 @@ pub fn load<P: AsRef<Path>>(filepath : P) -> Result<PlanTemplate, Box<dyn std::e
         )))
     }
 }
+
+pub fn load_str(conf : &'_ str) -> Result<PlanTemplate, Box<dyn std::error::Error>> {
+    match toml::from_str::<PlanTemplate>(conf) {
+        Ok(ok) => Ok(ok),
+        Err(e) => Err(err_define::system::ParsingError::new(make_err_msg!(
+            "{}", e
+        )))
+    }
+}

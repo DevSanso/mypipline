@@ -49,6 +49,7 @@ impl CommonSqlConnection for PostgresConnection {
         let pg_param :  Vec<&(dyn ToSql + Sync)> = param.iter().fold(Vec::new(), |mut acc,x| {
             match x {
                 CommonValue::BigInt(i) => acc.push(i),
+                CommonValue::Int(i) => acc.push(i),
                 CommonValue::Null => acc.push(&Option::<i64>::None),
                 CommonValue::Double(f) => acc.push(f),
                 CommonValue::Binrary(v) => acc.push(v),
@@ -81,6 +82,7 @@ impl CommonSqlConnection for PostgresConnection {
 
         for col in rows[0].columns() {
             cols_t.push(col.type_());
+            ret.cols_name.push(col.name().to_string());
         }
 
         for row in &rows {
@@ -91,7 +93,8 @@ impl CommonSqlConnection for PostgresConnection {
                     &Type::BOOL => Ok(get_pg_data!(row, col_idx, bool, CommonValue, Bool)),
                     &Type::CHAR | &Type::VARCHAR | &Type::TEXT => Ok(get_pg_data!(row, col_idx, String, CommonValue, String)),
                     &Type::FLOAT4 | &Type::FLOAT8 | &Type::NUMERIC => Ok(get_pg_data!(row, col_idx, f64, CommonValue, Double)),
-                    &Type::INT2 | &Type::INT4 | &Type::INT8 => Ok(get_pg_data!(row, col_idx, i64, CommonValue, BigInt)),
+                    &Type::INT2 | &Type::INT4 =>Ok(get_pg_data!(row, col_idx, i32, CommonValue, Int)),
+                    &Type::INT8 => Ok(get_pg_data!(row, col_idx, i64, CommonValue, BigInt)),
                     &Type::BYTEA => Ok(get_pg_data!(row, col_idx, Vec<u8>, CommonValue, Binrary)),
                     _ => {
                         Err(err_def::connection::ResponseScanError::new(

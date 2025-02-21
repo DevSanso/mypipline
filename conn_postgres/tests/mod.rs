@@ -114,6 +114,10 @@ pub fn test_pg_get_dummy_select() -> Result<(), Box<dyn Error>> {
     assert_eq!(row[2], param[2], "value float check failed");
     assert_eq!(row[3], param[3], "value text check failed");
 
+    let cols_name = ret.cols_name;
+
+    assert_eq!(cols_name.len(), 4, "not matching cols name count");
+
     Ok(())
 }
 

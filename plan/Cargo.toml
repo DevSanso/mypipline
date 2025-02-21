@@ -2,6 +2,7 @@
 name = "plan"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [dependencies]
 common = {path = "../common"}
@@ -11,3 +12,11 @@ conn_postgres = {path = "../conn_postgres"}
 conn_scylla = {path = "../conn_scylla"}
 
 serde = {features = ["derive"], version = "1.0.217"}
+
+[dev-dependencies]
+plan_toml = {path = "../plan_toml"}
+
+
+[[test]]
+name = "test_root"
+path = "tests/mod.rs"

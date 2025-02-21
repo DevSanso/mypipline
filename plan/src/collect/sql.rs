@@ -45,6 +45,7 @@ impl CollectPlan for SqlCollectPlan {
         let mut ret = HashMap::new();
         
         for name in recv_data.cols_name.as_slice() {
+
             if self.fetch_define.get(name.as_str()).is_none() {
                 continue;
             }
