@@ -117,7 +117,7 @@ impl<'a> ScyllaFetcher<'a> {
             ColumnType::Double => Self::cast_cql_val_to_comm_double_value(cql_value),
             
             _ => return Err(err_def::connection::ResponseScanError::new(
-                 make_err_msg!("copy_reponse_data - can't cast data type:{:?}", t)
+                 make_err_msg!("copy_reponse_data - can't cast data type:{:?}", t), None
             ))
          };
         Ok(d)
@@ -126,7 +126,7 @@ impl<'a> ScyllaFetcher<'a> {
     fn fetch_iter<T : scylla::deserialize::DeserializeRow<'a,'a>> (query_ret : &'a QueryRowsResult) -> Result<TypedRowIterator<'a, 'a, T>, Box<dyn Error>> {
         match query_ret.rows::<T>(){
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
+            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err), None))
         }
     }
 
@@ -134,7 +134,7 @@ impl<'a> ScyllaFetcher<'a> {
         let mut data = Vec::with_capacity(1);
         let val = match Self::cast_data(self.cols_desc[0], &row.0) {
             Ok(ok) => ok,
-            Err(e) => return Err(err_def::connection::ResponseScanError::chain(make_err_msg!(""), e))
+            Err(e) => return Err(err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e)))
         };
         data.push(val);
 
@@ -151,7 +151,7 @@ impl<'a> ScyllaFetcher<'a> {
 
             let val = match Self::cast_data(self.cols_desc[idx], cal_val) {
                 Ok(ok) => ok,
-                Err(e) => return Err(err_def::connection::ResponseScanError::chain(make_err_msg!(""), e))
+                Err(e) => return Err(err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e)))
             };
             data.push(val);
         }
@@ -170,7 +170,7 @@ impl<'a> ScyllaFetcher<'a> {
 
             let val = match Self::cast_data(self.cols_desc[idx], cal_val) {
                 Ok(ok) => ok,
-                Err(e) => return Err(err_def::connection::ResponseScanError::chain(make_err_msg!(""), e))
+                Err(e) => return Err(err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e)))
             };
             data.push(val);
         }
@@ -190,7 +190,7 @@ impl<'a> ScyllaFetcher<'a> {
 
             let val = match Self::cast_data(self.cols_desc[idx], cal_val) {
                 Ok(ok) => ok,
-                Err(e) => return Err(err_def::connection::ResponseScanError::chain(make_err_msg!(""), e))
+                Err(e) => return Err(err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e)))
             };
             data.push(val);
         }
@@ -209,14 +209,14 @@ impl<'a> ScyllaFetcher<'a> {
             1 => {
                 let mut fetch_data_iter = match Self::fetch_iter::<res_type::Response1>(&self.fetch) {
                     Ok(ok) => Ok(ok),
-                    Err(e) => Err(err_def::connection::CommandRunError::chain(make_err_msg!(""), e))
+                    Err(e) => Err(err_def::connection::CommandRunError::new(make_err_msg!(""), Some(e)))
                 }?;
 
                 #[allow(irrefutable_let_patterns)]
                 while let row_scan_ret = fetch_data_iter.next().transpose() {
                     let row_opt = match row_scan_ret {
                         Ok(ok) => Ok(ok),
-                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
+                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err), None))
                     }?;
         
                     let row = match row_opt {
@@ -224,7 +224,7 @@ impl<'a> ScyllaFetcher<'a> {
                         None => break
                     };
                     let data = self.copy_response1(row).map_err(|e| {
-                        err_def::connection::ResponseScanError::chain(make_err_msg!(""), e)
+                        err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e))
                     })?;
                     
                     output.cols_data.push(data);
@@ -233,14 +233,14 @@ impl<'a> ScyllaFetcher<'a> {
             2 => {
                 let mut fetch_data_iter = match Self::fetch_iter::<res_type::Response2>(&self.fetch) {
                     Ok(ok) => Ok(ok),
-                    Err(e) => Err(err_def::connection::CommandRunError::chain(make_err_msg!(""), e))
+                    Err(e) => Err(err_def::connection::CommandRunError::new(make_err_msg!(""), Some(e)))
                 }?;
 
                 #[allow(irrefutable_let_patterns)]
                 while let row_scan_ret = fetch_data_iter.next().transpose() {
                     let row_opt = match row_scan_ret {
                         Ok(ok) => Ok(ok),
-                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
+                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err), None))
                     }?;
         
                     let row = match row_opt {
@@ -248,7 +248,7 @@ impl<'a> ScyllaFetcher<'a> {
                         None => break
                     };
                     let data = self.copy_response2(row).map_err(|e| {
-                        err_def::connection::ResponseScanError::chain(make_err_msg!(""), e)
+                        err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e))
                     })?;
                     
                     output.cols_data.push(data);
@@ -257,14 +257,14 @@ impl<'a> ScyllaFetcher<'a> {
             3 => {
                 let mut fetch_data_iter = match Self::fetch_iter::<res_type::Response3>(&self.fetch) {
                     Ok(ok) => Ok(ok),
-                    Err(e) => Err(err_def::connection::CommandRunError::chain(make_err_msg!(""), e))
+                    Err(e) => Err(err_def::connection::CommandRunError::new(make_err_msg!(""), Some(e)))
                 }?;
 
                 #[allow(irrefutable_let_patterns)]
                 while let row_scan_ret = fetch_data_iter.next().transpose() {
                     let row_opt = match row_scan_ret {
                         Ok(ok) => Ok(ok),
-                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
+                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err), None))
                     }?;
         
                     let row = match row_opt {
@@ -272,7 +272,7 @@ impl<'a> ScyllaFetcher<'a> {
                         None => break
                     };
                     let data = self.copy_response3(row).map_err(|e| {
-                        err_def::connection::ResponseScanError::chain(make_err_msg!(""), e)
+                        err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e))
                     })?;
                     
                     output.cols_data.push(data);
@@ -281,14 +281,14 @@ impl<'a> ScyllaFetcher<'a> {
             _ => {
                 let mut fetch_data_iter = match Self::fetch_iter::<res_type::Response4>(&self.fetch) {
                     Ok(ok) => Ok(ok),
-                    Err(e) => Err(err_def::connection::CommandRunError::chain(make_err_msg!(""), e))
+                    Err(e) => Err(err_def::connection::CommandRunError::new(make_err_msg!(""), Some(e)))
                 }?;
 
                 #[allow(irrefutable_let_patterns)]
                 while let row_scan_ret = fetch_data_iter.next().transpose() {
                     let row_opt = match row_scan_ret {
                         Ok(ok) => Ok(ok),
-                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
+                        Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err), None))
                     }?;
         
                     let row = match row_opt {
@@ -296,7 +296,7 @@ impl<'a> ScyllaFetcher<'a> {
                         None => break
                     };
                     let data = self.copy_response4(row).map_err(|e| {
-                        err_def::connection::ResponseScanError::chain(make_err_msg!(""), e)
+                        err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e))
                     })?;
                     
                     output.cols_data.push(data);

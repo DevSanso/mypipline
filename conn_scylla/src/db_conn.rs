@@ -22,7 +22,7 @@ pub struct ScyllaCommonSqlConnection {
 impl ScyllaCommonSqlConnection {
     pub(crate) fn new(infos : Vec<CommonSqlConnectionInfo>) -> Result<Self, Box<dyn Error>> {
         if infos.len() <= 0 {
-            return Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("scylla connection info array size of zero")))
+            return Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("scylla connection info array size of zero"), None))
         }
         
         let mut builder = SessionBuilder::new();
@@ -44,7 +44,7 @@ impl ScyllaCommonSqlConnection {
 
         match block {
             Ok(ok) => Ok(ScyllaCommonSqlConnection{session : ok, rt : rt}),
-            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err)))
+            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err), None))
         }
     }
 }
@@ -56,7 +56,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
 
         let prepare = match self.rt.block_on(feature) {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!("{}", err)))
+            Err(err) => Err(err_def::connection::ConnectionApiCallError::new(make_err_msg!("{}", err), None))
         }?;
         
         let mut result = CommonSqlExecuteResultSet::default();
@@ -85,7 +85,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
         let feature = self.session.execute_unpaged(&prepare, real_param);
         let query_result = match self.rt.block_on(feature) {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!("{}", err)))
+            Err(err) => Err(err_def::connection::CommandRunError::new(make_err_msg!("{}", err), None))
         }?;
 
         if typ.len() <= 0 {
@@ -94,13 +94,13 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
         
         let rows = match query_result.into_rows_result() {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err)))
+            Err(err) => Err(err_def::connection::ResponseScanError::new(make_err_msg!("{}", err), None))
         }?;
         
         let mut fetcher = ScyllaFetcher::new(&rows, &typ);
 
         fetcher.fetch(&mut result).map_err(|e| {
-            err_def::connection::ResponseScanError::chain(make_err_msg!(""), e)
+            err_def::connection::ResponseScanError::new(make_err_msg!(""), Some(e))
         })?;
 
         Ok(result)
@@ -110,7 +110,7 @@ impl CommonSqlConnection for ScyllaCommonSqlConnection {
         let ret = self.execute("SELECT CAST(toUnixTimestamp(now()) AS BIGINT) AS unix_timestamp  FROM system.local", &[])?;
 
         if ret.cols_data.len() <= 0 && ret.cols_data[0].len() <= 0 {
-            return Err(err_def::connection::ResponseScanError::new(make_err_msg!("not exists now return data")));
+            return Err(err_def::connection::ResponseScanError::new(make_err_msg!("not exists now return data"), None));
         }
 
         let data = match ret.cols_data[0][0] {

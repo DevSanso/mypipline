@@ -67,7 +67,7 @@ fn get_plans(vp : Vec<PlanTemplate>) -> Result<Vec<(String, Box<dyn CollectPlan>
         let name = p.name.clone();
         let real_plan = match make_plans(p) {
             Ok(ok) => Ok(ok),
-            Err(e) => Err(err_def::system::ParsingError::new(make_err_msg!("{}", e)))
+            Err(e) => Err(err_def::system::ParsingError::new(make_err_msg!("{}", e), None))
         }?;
 
         v.push((name, real_plan.0, real_plan.1));
@@ -79,7 +79,7 @@ fn get_plans(vp : Vec<PlanTemplate>) -> Result<Vec<(String, Box<dyn CollectPlan>
 pub(crate) fn start_plan_threads(vp : Vec<PlanTemplate>) -> Result<(), Box<dyn Error>> {
     let plans = match get_plans(vp) {
         Ok(ok) => Ok(ok),
-        Err(e) => Err(err_def::system::ParsingError::new(make_err_msg!("{}", e)))
+        Err(e) => Err(err_def::system::ParsingError::new(make_err_msg!("{}", e), None))
     }?;
 
     std::thread::scope(|s| {

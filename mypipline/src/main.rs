@@ -31,7 +31,7 @@ fn load_plans<P : AsRef<std::path::Path>>(dir :P) -> Result<Vec<PlanTemplate>, B
         let read_dir = match std::fs::read_dir(dir) {
             Ok(ok) => Ok(ok),
             Err(e) => Err(err_def::system::ApiCallError::new(
-                make_err_msg!("{}", e)
+                make_err_msg!("{}", e), None
             ))
         }?;
         read_dir.collect()
@@ -41,14 +41,14 @@ fn load_plans<P : AsRef<std::path::Path>>(dir :P) -> Result<Vec<PlanTemplate>, B
     
     for file in read_dir_vec.iter() {
         if file.is_err() {
-            return Err(err_def::system::ApiCallError::new(make_err_msg!("{}", file.as_ref().unwrap_err())));
+            return Err(err_def::system::ApiCallError::new(make_err_msg!("{}", file.as_ref().unwrap_err()), None));
         }
 
         let entry = file.as_ref().unwrap();
 
         let meta = match entry.metadata() {
             Ok(ok) => Ok(ok),
-            Err(_) => Err(err_def::system::ApiCallError::new(make_err_msg!("failed, read file metadata")))
+            Err(_) => Err(err_def::system::ApiCallError::new(make_err_msg!("failed, read file metadata"), None))
         }?;
 
         if meta.is_dir() {continue;}
@@ -61,7 +61,7 @@ fn load_plans<P : AsRef<std::path::Path>>(dir :P) -> Result<Vec<PlanTemplate>, B
 
         let plan_data = match plan_load(file_path) {
                 Ok(ok) => Ok(ok),
-            Err(_) => Err(err_def::system::ApiCallError::new(make_err_msg!("failed, read file metadata")))
+            Err(_) => Err(err_def::system::ApiCallError::new(make_err_msg!("failed, read file metadata"), None))
         }?;
 
         v.push(plan_data);

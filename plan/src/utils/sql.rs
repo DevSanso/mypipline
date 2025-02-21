@@ -42,7 +42,7 @@ pub fn new_conn_pool(db_type : &'_ str, plan_name : String, info : Vec<CommonSql
     match db_type {
         "postgres" => Ok(create_pg_conn_pool(format!("{}:{}:{}", db_type, &plan_name, &info[0].addr), info[0].clone(), 2)),
         "scylla" => Ok(create_scylla_conn_pool(format!("{}:{}:{}", db_type, &plan_name, &info[0].addr), info, 2)),
-        _ => Err(err_def::system::NoSupportError::new(make_err_msg!("not support {}", db_type)))
+        _ => Err(err_def::system::NoSupportError::new(make_err_msg!("not support {}", db_type), None))
     }
 }
 

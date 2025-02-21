@@ -42,17 +42,18 @@ macro_rules! impl_error {
         }
 
         impl $name {
-            pub fn new(sub_msg : String) -> Box<dyn Error> {
-                let ret = $name($message, sub_msg, None);
-                Box::new(ret)
-            }
-
-            pub fn chain(sub_msg : String, right : Box<dyn Error>) -> Box<dyn Error> {
-                let ret = $name($message, sub_msg, Some(
-                    Box::new(InternalChain(right, None))
-                ));
-
-                Box::new(ret)
+            pub fn new(sub_msg : String, old_error : Option<Box<dyn Error>>) -> Box<dyn Error> {
+                if old_error.is_none() {
+                    let ret = $name($message, sub_msg, None);
+                    Box::new(ret)
+                } 
+                else {
+                    let ret = $name($message, sub_msg, Some(
+                        Box::new(InternalChain(old_error.unwrap(), None))
+                    ));
+    
+                    Box::new(ret)
+                }
             }
         }
 

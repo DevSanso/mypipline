@@ -18,7 +18,7 @@ fn new_sql_send_plan(name : String, data : &'_ crate::template::SendPlanTemplate
 
     if conn_info.len() <= 0 {
         return Err(err_def::system::NoDataError::new(
-            make_err_msg!("no data : {}", name)
+            make_err_msg!("no data : {}", name), None
         ));
     }
 
@@ -33,7 +33,7 @@ fn new_sql_send_plan(name : String, data : &'_ crate::template::SendPlanTemplate
 
 pub(crate) fn new_send_plan(name : String, data : &'_ crate::template::SendPlanTemplate) -> Result<Box<dyn SendPlan>, Box<dyn std::error::Error>> {
     if data.send_type != "sql" {
-        return Err(err_def::system::ApiCallError::new(make_err_msg!("not support type : {}", data.send_type)));
+        return Err(err_def::system::ApiCallError::new(make_err_msg!("not support type : {}", data.send_type), None));
     }
 
     new_sql_send_plan(name, data)

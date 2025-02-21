@@ -35,7 +35,7 @@ impl PostgresConnection {
 
         let conn = match postgres::Client::connect(url.as_str(), postgres::NoTls) {
             Ok(ok) => Ok(ok),
-            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err.to_string())))
+            Err(err) => Err(err_def::connection::GetConnectionFailedError::new(make_err_msg!("{}", err.to_string()), None))
         }?;
 
         Ok(PostgresConnection {
@@ -57,7 +57,7 @@ impl CommonSqlConnection for PostgresConnection {
                 _ => {
                     let err_error = err_def::system::ApiCallError::new(make_err_msg!(
                         "not support type({:?}), return null", x
-                    ));
+                    ), None);
                     error!("{}", err_error);
                     acc.push(&Option::<i64>::None)
                 }
@@ -69,7 +69,7 @@ impl CommonSqlConnection for PostgresConnection {
         let rows = match self.client.query(query, pg_param.as_slice()) {
             Ok(ok) => Ok(ok),
             Err(err) =>  Err(err_def::connection::CommandRunError::new(
-                make_err_msg!("{}",err.to_string())
+                make_err_msg!("{}",err.to_string()), None
             ))
         }?;
 
@@ -98,7 +98,7 @@ impl CommonSqlConnection for PostgresConnection {
                     &Type::BYTEA => Ok(get_pg_data!(row, col_idx, Vec<u8>, CommonValue, Binrary)),
                     _ => {
                         Err(err_def::connection::ResponseScanError::new(
-                            make_err_msg!("not support this type({}), return NULL", cols_t[col_idx])
+                            make_err_msg!("not support this type({}), return NULL", cols_t[col_idx]), None
                         ))
                     }
                 }?;
@@ -115,7 +115,7 @@ impl CommonSqlConnection for PostgresConnection {
         let ret = self.execute("SELECT EXTRACT(EPOCH FROM NOW())::bigint AS unix_timestamp;", &[])?;
 
         if ret.cols_data.len() <= 0 && ret.cols_data[0].len() <= 0 {
-            return Err(err_def::connection::ResponseScanError::new(make_err_msg!("not exists now return data")));
+            return Err(err_def::connection::ResponseScanError::new(make_err_msg!("not exists now return data"), None));
         }
 
         let data = match ret.cols_data[0][0] {

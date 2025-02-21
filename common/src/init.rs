@@ -39,7 +39,7 @@ pub mod logger {
                     if chk_write.is_err() {
                         unsafe {
                             LOGGER_INIT_RET = Err(crate::err::define::system::ApiCallError::new(
-                                crate::err::make_err_msg_crate!("{}", chk_write.unwrap_err())
+                                crate::err::make_err_msg_crate!("{}", chk_write.unwrap_err()), None
                             ));
                         }
                         return;
@@ -57,7 +57,7 @@ pub mod logger {
                 LOGGER_INIT_RET = match ftail.init() {
                     Ok(_) => Ok(()),
                     Err(e) => Err(crate::err::define::system::ApiCallError::new(
-                        crate::err::make_err_msg_crate!("{}", e)
+                        crate::err::make_err_msg_crate!("{}", e), None
                     ))
                 }
             }

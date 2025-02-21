@@ -101,12 +101,12 @@ impl<T,P> InternalOwnedPool<T,P> where T : 'static, P: 'static {
                 if g.alloc_size < self.max_size {
                     let gen_item = (self.gen)(p);
                 if gen_item.is_none() {
-                    return Err(define_err::GenResultIsNoneError::new(String::from(format!("pool_name:{}", self.pool_name))));
+                    return Err(define_err::GenResultIsNoneError::new(String::from(format!("pool_name:{}", self.pool_name)), None));
                 }
                 g.items.push_back(gen_item.unwrap());
                 g.alloc_size += 1;
                 } else {
-                    return Err(define_err::MaxSizedError::new(String::from(format!("pool_name:{}", self.pool_name))));
+                    return Err(define_err::MaxSizedError::new(String::from(format!("pool_name:{}", self.pool_name)), None));
                 }
             }
         }   

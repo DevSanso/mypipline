@@ -19,7 +19,7 @@ fn new_sql_collect_plan(name : String, data : &'_ crate::template::CollectPlanTe
 
     if conn_info.len() <= 0 {
         return Err(err_def::system::NoDataError::new(
-            make_err_msg!("no data : {}", name)
+            make_err_msg!("no data : {}", name), None
         ));
     }
 
@@ -38,7 +38,7 @@ fn new_sql_collect_plan(name : String, data : &'_ crate::template::CollectPlanTe
 
 pub(crate) fn new_collect_plan(name : String, data : &'_ crate::template::CollectPlanTemplate) -> Result<Box<dyn CollectPlan>, Box<dyn std::error::Error>> {
     if data.collect_type != "sql" {
-        return Err(err_def::system::ApiCallError::new(make_err_msg!("not support type : {}", data.collect_type)));
+        return Err(err_def::system::ApiCallError::new(make_err_msg!("not support type : {}", data.collect_type), None));
     }
 
     new_sql_collect_plan(name, data)

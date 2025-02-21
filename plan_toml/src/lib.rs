@@ -14,13 +14,13 @@ pub fn load<P: AsRef<Path>>(filepath : P) -> Result<PlanTemplate, Box<dyn std::e
         Ok(ok) => ok,
         Err(e) => return Err(err_define::system::ApiCallError::new(make_err_msg!(
             "{}", e
-        )))
+        ), None))
     };
     let conf = {
         let mut buf = String::new();
         let read_ret = f.read_to_string(&mut buf);
         if read_ret.is_err() {
-            return Err(err_define::system::ApiCallError::new(make_err_msg!("{}", read_ret.unwrap_err().to_string())));
+            return Err(err_define::system::ApiCallError::new(make_err_msg!("{}", read_ret.unwrap_err().to_string()), None));
         }
         buf
     };
@@ -29,7 +29,7 @@ pub fn load<P: AsRef<Path>>(filepath : P) -> Result<PlanTemplate, Box<dyn std::e
         Ok(ok) => Ok(ok),
         Err(e) => Err(err_define::system::ParsingError::new(make_err_msg!(
             "{}", e
-        )))
+        ), None))
     }
 }
 
@@ -38,6 +38,6 @@ pub fn load_str(conf : &'_ str) -> Result<PlanTemplate, Box<dyn std::error::Erro
         Ok(ok) => Ok(ok),
         Err(e) => Err(err_define::system::ParsingError::new(make_err_msg!(
             "{}", e
-        )))
+        ), None))
     }
 }
