@@ -1,0 +1,29 @@
+[connection.service]
+ip = "127.0.0.1"
+port = 5432
+database = "service"
+user = "user"
+password = "user"
+type = "postgres"
+
+[connection.data_store]
+ip = "127.0.0.1"
+port = 5432
+database = "data_store"
+user = "user"
+password = "user"
+type = "mysql"
+
+[plan.plan1]
+interval = 5
+chain = [
+    {connection="service", query="select 1", auto_commit=false},
+    {connection="data_store", query="insert into testing(num) values($1) ", auto_commit=false},
+]
+
+[plan.plan2]
+interval = 5
+chain = [
+    {connection="service", query="select 1", auto_commit=false},
+    {connection="data_store", query="insert into testing(num) values($1) ", auto_commit=false},
+]
