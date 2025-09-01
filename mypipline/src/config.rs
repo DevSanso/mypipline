@@ -21,6 +21,8 @@ pub struct ConnectionConfig {
     
     #[serde(rename = "type")]
     pub db_type: String,
+    pub timeout : u32,
+    pub max_conn : usize
 }
 
 #[derive(Debug, Deserialize)]

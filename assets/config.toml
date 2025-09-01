@@ -5,6 +5,8 @@ database = "service"
 user = "user"
 password = "user"
 type = "postgres"
+timeout = 0
+max_conn = 10
 
 [connection.data_store]
 ip = "127.0.0.1"
@@ -13,6 +15,9 @@ database = "data_store"
 user = "user"
 password = "user"
 type = "mysql"
+timeout = 0
+max_conn = 10
+
 
 [plan.plan1]
 interval = 5
