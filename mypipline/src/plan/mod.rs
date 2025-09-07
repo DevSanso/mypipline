@@ -4,13 +4,14 @@ use std::thread;
 use std::time::{self, Duration};
 use std::error::Error;
 
-use common_rs::db::core::{CommonSqlExecuteResultSet, CommonValue, CommonSqlConnection};
-use common_rs::err::core::{API_CALL_ERROR, COMMON_ERROR_CATEGORY, CRITICAL_ERROR};
+use common_rs::db::core::{CommonSqlConnection, CommonSqlConnectionPool, CommonSqlExecuteResultSet, CommonValue};
+use common_rs::err::core::{API_CALL_ERROR, COMMON_ERROR_CATEGORY, CRITICAL_ERROR, NO_DATA_ERROR};
 use common_rs::err::create_error;
-use common_rs::err::db::COMMAND_RUN_ERROR;
+use common_rs::err::db::{COMMAND_RUN_ERROR, COMMON_CONN_ERROR_CATEGORY};
 
 use crate::config::PlanConfig;
 use crate::global::get_db_conn_from_pool;
+use crate::map::DbConnPool;
 
 #[derive(Default, Clone)]
 struct PlanState {
@@ -20,6 +21,12 @@ struct PlanState {
     min_elap : Duration,
 
     run_count : u64
+}
+
+struct DbPoolParam {
+    pub query : String, 
+    pub is_autocommit : bool,
+    pub params : Option<CommonSqlExecuteResultSet>
 }
 
 pub struct Plan {
@@ -67,48 +74,78 @@ impl Plan {
         Ok(ret)
     }
 
-    pub fn execute_plan(&self) -> Result<PlanState, Box<dyn Error>> {
+
+    fn execute_callback(db_pool : Option<&mut CommonSqlConnectionPool>, p : Option<DbPoolParam>) -> Result<Option<CommonSqlExecuteResultSet>, Box< dyn Error>> {
+        let mut ret = None;
+        
+        if db_pool.is_none() {
+            return create_error(COMMON_ERROR_CATEGORY, NO_DATA_ERROR, "db pool none".to_string(),
+                    None).as_error();
+        }
+
+        if p.is_none() {
+            return create_error(COMMON_ERROR_CATEGORY, NO_DATA_ERROR, "param none".to_string(),
+                    None).as_error();
+        }
+
+        let db_p = db_pool.unwrap();
+
+        let mut db_conn = match db_p.get_owned(()) {
+            Ok(ok) => Ok(ok),
+            Err(e) => create_error(COMMON_ERROR_CATEGORY, API_CALL_ERROR, "".to_string(),
+                Some(e)).as_error()
+        }?;
+
+        let conn = db_conn.get_value();
+
+        let param = p.unwrap();
+
+        if param.params.is_none() {
+            let output = match conn.execute(param.query.as_str(), &[]) {
+                Ok(ok) => Ok(ok),
+                Err(e) => create_error(COMMON_ERROR_CATEGORY, API_CALL_ERROR, "".to_string(),
+                    Some(e)).as_error()
+            }?;
+
+            if output.cols_data.len() > 0 {
+                ret = Some(output)
+            }
+        }
+        else {
+            let query_input = param.params.unwrap();
+
+            ret = if param.is_autocommit {
+                Self::execute_auto_commit(conn, param.query.as_str(), query_input.cols_data)
+            } else {
+                Self::execute_auto_commit_off(conn, param.query.as_str(), query_input.cols_data)
+            }?;
+        }
+
+        Ok(ret)
+    }
+
+    pub fn execute_plan(&self, db_map : DbConnPool) -> Result<PlanState, Box<dyn Error>> {
         if self.is_use.swap(true, std::sync::atomic::Ordering::SeqCst) {
             return create_error(COMMON_ERROR_CATEGORY, CRITICAL_ERROR, 
                 format!("already use, call:{:?}", thread::current().id()), None).as_error();
         }
 
         let timer = time::SystemTime::now();
-        let mut input : Option<Vec<Vec<CommonValue>>> = None;
+        let mut input : Option<CommonSqlExecuteResultSet> = None;
 
         for query in self.cfg.chain.iter() {
-            let mut db_conn = match get_db_conn_from_pool(query.connection.as_str()) {
-                Ok(ok) => Ok(ok),
-                Err(e) => create_error(COMMON_ERROR_CATEGORY, API_CALL_ERROR, "".to_string(),
-                    Some(e)).as_error()
-            }?;
+            let call_param = DbPoolParam {
+                query : query.query.clone(),
+                is_autocommit : query.auto_commit,
+                params : input.take()
+            };
+            let call_ret = db_map.call_fn(&query.connection, Some(call_param), &Self::execute_callback).map_err(|x| {
+                create_error(COMMON_CONN_ERROR_CATEGORY, COMMAND_RUN_ERROR, "".to_string(), Some(x))
+                    .as_error::<()>()
+                    .unwrap_err()
+            })?;
 
-
-            let conn = db_conn.get_value();
-
-            if input.is_none() {
-                let output = match conn.execute(query.query.as_str(), &[]) {
-                    Ok(ok) => Ok(ok),
-                    Err(e) => create_error(COMMON_ERROR_CATEGORY, API_CALL_ERROR, "".to_string(),
-                        Some(e)).as_error()
-                }?;
-
-                if output.cols_data.len() > 0 {
-                    input = Some(output.cols_data);
-                }
-            }
-            else {
-                let query_input = input.take().unwrap();
-                let execute_ret = if query.auto_commit {
-                    Self::execute_auto_commit(conn, &query.query, query_input)
-                } else {
-                    Self::execute_auto_commit_off(conn, &query.query, query_input)
-                }?;
-
-                if execute_ret.is_some() {
-                    input = Some(execute_ret.unwrap().cols_data)
-                }
-            }
+            input = call_ret;
         }
 
         let elap = timer.elapsed().map_err(|x| {
