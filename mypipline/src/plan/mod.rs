@@ -10,21 +10,20 @@ use common_rs::err::create_error;
 use common_rs::err::db::{COMMAND_RUN_ERROR, COMMON_CONN_ERROR_CATEGORY};
 
 use crate::config::PlanConfig;
-use crate::global::get_db_conn_from_pool;
 use crate::map::DbConnPool;
 
 #[derive(Default, Clone)]
-struct PlanState {
-    total_elap : Duration,
-    avg_elap : Duration,
-    max_elap : Duration,
-    min_elap : Duration,
+pub struct PlanState {
+    pub total_elap : Duration,
+    pub avg_elap : Duration,
+    pub max_elap : Duration,
+    pub min_elap : Duration,
 
-    run_count : u64
+    pub run_count : u64
 }
 
-struct DbPoolParam {
-    pub query : String, 
+struct DbPoolParam<'a> {
+    pub query : &'a str, 
     pub is_autocommit : bool,
     pub params : Option<CommonSqlExecuteResultSet>
 }
@@ -101,7 +100,7 @@ impl Plan {
         let param = p.unwrap();
 
         if param.params.is_none() {
-            let output = match conn.execute(param.query.as_str(), &[]) {
+            let output = match conn.execute(param.query, &[]) {
                 Ok(ok) => Ok(ok),
                 Err(e) => create_error(COMMON_ERROR_CATEGORY, API_CALL_ERROR, "".to_string(),
                     Some(e)).as_error()
@@ -115,16 +114,16 @@ impl Plan {
             let query_input = param.params.unwrap();
 
             ret = if param.is_autocommit {
-                Self::execute_auto_commit(conn, param.query.as_str(), query_input.cols_data)
+                Self::execute_auto_commit(conn, param.query, query_input.cols_data)
             } else {
-                Self::execute_auto_commit_off(conn, param.query.as_str(), query_input.cols_data)
+                Self::execute_auto_commit_off(conn, param.query, query_input.cols_data)
             }?;
         }
 
         Ok(ret)
     }
 
-    pub fn execute_plan(&self, db_map : DbConnPool) -> Result<PlanState, Box<dyn Error>> {
+    pub fn execute_plan(&self, db_map : &'_ DbConnPool) -> Result<PlanState, Box<dyn Error>> {
         if self.is_use.swap(true, std::sync::atomic::Ordering::SeqCst) {
             return create_error(COMMON_ERROR_CATEGORY, CRITICAL_ERROR, 
                 format!("already use, call:{:?}", thread::current().id()), None).as_error();
@@ -135,7 +134,7 @@ impl Plan {
 
         for query in self.cfg.chain.iter() {
             let call_param = DbPoolParam {
-                query : query.query.clone(),
+                query : query.query.as_str(),
                 is_autocommit : query.auto_commit,
                 params : input.take()
             };

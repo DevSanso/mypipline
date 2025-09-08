@@ -9,7 +9,6 @@ use common_rs::err::core::*;
 
 use crate::args;
 use crate::config;
-use crate::global::{init_global_db_pool, init_global_plan};
 use crate::map::{DbConnPool, PlanPool};
 use crate::plan::Plan;
 

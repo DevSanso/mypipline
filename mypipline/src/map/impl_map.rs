@@ -6,8 +6,8 @@ use std::cell::RefCell;
 use std::error::Error;
 
 
-pub type CallFn<T : 'static, P : 'static, R>  = dyn Fn(Option<&mut T>, Option<P>) -> Result<R, Box<dyn Error>>;
-pub type CallMapInitFn<K: Eq + Hash + Clone,T : 'static, T2 :'static>   where T : 'static, T2 : 'static = dyn Fn(HashMap<K,T2>) -> HashMap<K,T>;
+pub type CallFn<T, P, R>  = dyn Fn(Option<&mut T>, Option<P>) -> Result<R, Box<dyn Error>>;
+pub type CallMapInitFn<K,T, T2>  = dyn Fn(HashMap<K,T2>) -> HashMap<K,T>;
 
 pub struct CallMap<K : Eq + Hash + Clone, T, T2> where T : 'static, T2 : 'static {
     real_map : RefCell<HashMap<K, T>>,
@@ -20,7 +20,7 @@ impl<K : Eq + Hash + Clone, T, T2> CallMap<K, T, T2>  where T : 'static, T2 : 's
         CallMap { real_map: RefCell::new(init_callback(param)), _marker: PhantomData::default() }
     }
 
-    pub fn call_fn<P, R>(&self, key : &K, param : Option<P>, func : &'static CallFn<T,P,R>) -> Result<R, Box<dyn Error>> {
+    pub fn call_fn<P, R>(&self, key : &K, param : Option<P>, func : & CallFn<T,P,R>) -> Result<R, Box<dyn Error>> {
         let mut h = self.real_map.borrow_mut();
         func(h.get_mut(key), param)
         
