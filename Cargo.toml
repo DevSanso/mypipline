@@ -1,2 +1,2 @@
 [workspace]
-members = [ "common","conn", "conn_postgres", "conn_restapi", "conn_scylla", "mypipline", "plan", "plan_toml"]
+members = [ "mypipline" ]
