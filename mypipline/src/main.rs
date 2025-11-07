@@ -1,41 +1,44 @@
-mod config;
+use serde::{Deserialize, Serialize};
+
+use common_rs::c_err::CommonError;
+use common_rs::c_err::gen::CommonErrorList;
+use common_rs::init::InitConfig;
+use crate::loader::ConfLoader;
+
+mod loader;
 mod args;
-mod plan;
+mod types;
 mod executor;
-mod init;
-mod constant;
-mod map;
 
-use std::sync::Arc;
-
-use common_rs::{logger, signal::SIGINT};
-
-use crate::executor::{Executor, ExecutorHandle};
-
-fn execute_befre() -> Result<bool, Box<dyn std::error::Error>> {
-    let ret = common_rs::signal::is_set_signal(SIGINT);
-    Ok(ret)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AppConfig {
+    pub loader_type : String,
+    pub file_loader_root_path : String,
 }
 
-fn execute_after() -> Result<bool, Box<dyn std::error::Error>> {
-    Ok(true)
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (proc_args, config_data) = init::get_args_and_config()?;
-    let init_ret = init::init_common_lib(&proc_args);
-
-    if init_ret.is_err() {
-        logger::error!("main - init process failed");
-        logger::error!("main - init error : {}", init_ret.unwrap_err());
-    }
+fn load_app_conf(proc_args : &args::Args) -> Result<AppConfig, impl std::error::Error> {
+    let config_data = std::fs::read_to_string(proc_args.config.as_path())
+        .map_err(|e| CommonError::new(&CommonErrorList::InvalidApiCall, e.to_string()))?;
     
-    let (db_p, plan_p) = init::create_process_maps(config_data)?;
-    let db_arc = Arc::new(db_p);
-    let exec = executor::new_exector(plan_p, &db_arc, &execute_befre, &execute_after);
-    let handle = exec.run()?;
-
-    handle.stop_wait();
-
+    let ret = toml::from_str(config_data.as_str())
+        .map_err(|e| CommonError::new(&CommonErrorList::ParsingFAil, e.to_string()));
+    ret
+}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let proc_args = args::parsing();
+    let log_file = proc_args.log_file.clone();
+    
+    common_rs::init::init_common(InitConfig {
+        log_level: (&proc_args).log_level.as_str(),
+        log_file: Some(log_file.unwrap().as_str()),
+    })?;
+    
+    let app_config = load_app_conf(&proc_args)?;
+    
+    let conf_loader = loader::toml_file_loader
+        ::TomlFileConfLoader::new(app_config.file_loader_root_path, true);
+    
+    let a : Box<dyn ConfLoader> = Box::new(conf_loader);
+    
     Ok(())
 }
