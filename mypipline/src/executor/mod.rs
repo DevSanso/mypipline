@@ -1,12 +1,20 @@
+use std::collections::hash_map::Keys;
+use std::collections::HashMap;
 use std::time::Duration;
 use std::error::Error;
 use std::sync::Arc;
 use std::thread;
 
+use common_rs::exec::c_relational_exec::{RelationalValue, RelationalExecutorPool};
+use common_rs::exec::c_exec_shell::ShellSplit;
+
 use crate::loader::ConfLoader;
+use crate::executor::types::ThreadState;
+use crate::types::config::Plan;
 
 mod plan_thread;
 mod exec_sync;
+mod types;
 
 trait ExecutorPrivate {
     fn signal(&mut self) -> bool;
@@ -21,12 +29,23 @@ pub trait Executor {
 
 pub struct ExecutorImpl {
     loader : Box<dyn ConfLoader>,
-    states : Arc<exec_sync::ThreadStateMap>,
+    states : Arc<exec_sync::ExecutorStateMap<ThreadState>>,
 
+    current_plan : Arc<exec_sync::ExecutorStateMap<Plan>>,
+    current_db_conn : Arc<exec_sync::ExecutorStateMap<RelationalExecutorPool<RelationalValue>>>,
+    current_shell_conn : Arc<exec_sync::ExecutorStateMap<RelationalExecutorPool<ShellSplit>>>,
 }
 
 pub fn executor_create(loader : Box<dyn ConfLoader>) -> Box<dyn Executor> {
-    Box::new(ExecutorImpl {loader, states : exec_sync::ThreadStateMap::new()})
+    Box::new(ExecutorImpl {
+        loader, states : exec_sync::ExecutorStateMap::new(),
+        current_plan : exec_sync::ExecutorStateMap::new(),
+        current_db_conn : exec_sync::ExecutorStateMap::new(),
+        current_shell_conn : exec_sync::ExecutorStateMap::new(),
+    })
+}
+
+impl ExecutorImpl {
 }
 
 impl Executor for ExecutorImpl {
@@ -78,6 +97,7 @@ impl ExecutorPrivate for ExecutorImpl {
         let plans = self.loader.load_plan()?;
         let conns = self.loader.load_connection()?;
 
+        let mut plan_iter =  plans.plan_list.iter();
 
 
         Ok(())
