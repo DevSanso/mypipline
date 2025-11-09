@@ -38,8 +38,8 @@ impl TomlFileConfLoader {
 }
 
 impl ConfLoader for TomlFileConfLoader {
-    fn load_plan(&self) -> Result<PlanRoot, Box<dyn Error>> {
-        let ret : Result<PlanRoot, Box<dyn Error>> = if self.is_once_load {
+    fn load_plan(&self) -> Result<PlanRoot, CommonError> {
+        let ret : Result<PlanRoot, CommonError> = if self.is_once_load {
             let c = self.once_cache.0.get();
             if c.is_none() {
                 let data = self.read_data("plan.toml")?;
@@ -59,8 +59,8 @@ impl ConfLoader for TomlFileConfLoader {
         ret
     }
 
-    fn load_connection(&self) -> Result<ConnectionInfos,  Box<dyn Error>> {
-        let ret : Result<ConnectionInfos, Box<dyn Error>> = if self.is_once_load {
+    fn load_connection(&self) -> Result<ConnectionInfos,  CommonError> {
+        let ret : Result<ConnectionInfos, CommonError> = if self.is_once_load {
             let c = self.once_cache.1.get();
             if c.is_none() {
                 let data = self.read_data("plan.toml")?;

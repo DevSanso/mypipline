@@ -4,8 +4,6 @@ use std::error::Error;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonErrorList;
 
-use crate::executor::types::ThreadState;
-
 pub(super) struct ExecutorStateMap<T : Clone> {
     map : RwLock<HashMap<String, T>>,
 }
@@ -15,7 +13,7 @@ impl<T : Clone> ExecutorStateMap<T> {
         Arc::new(ExecutorStateMap {map : RwLock::new(HashMap::new())})
     }
     
-    pub fn set(self : &Arc<Self>, name : &String, state : T) -> Result<(), impl Error> {
+    pub fn set(self : &Arc<Self>, name : &String, state : T) -> Result<(), CommonError> {
         let mut writer = self.map.write()
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
@@ -24,7 +22,7 @@ impl<T : Clone> ExecutorStateMap<T> {
         Ok::<(), CommonError>(())
     }
     
-    pub fn exist(self : &Arc<Self>, name: &String) -> Result<bool, impl Error> {
+    pub fn exist(self : &Arc<Self>, name: &String) -> Result<bool, CommonError> {
         let reader = self.map.read()
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
@@ -47,7 +45,7 @@ impl<T : Clone> ExecutorStateMap<T> {
         Ok::<Vec<String>, CommonError>(ret)
     }
     
-    pub fn delete(self : &Arc<Self>, name : &String) -> Result<(), impl Error> {
+    pub fn delete(self : &Arc<Self>, name : &String) -> Result<(), CommonError> {
         let mut writer = self.map.write()
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
@@ -56,7 +54,7 @@ impl<T : Clone> ExecutorStateMap<T> {
         Ok::<(), CommonError>(())
     }
 
-    pub fn get(self : &Arc<Self>, name : &String) -> Result<Option<T>, impl Error> {
+    pub fn get(self : &Arc<Self>, name : &String) -> Result<Option<T>, CommonError> {
         let reader = self.map.read()
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
