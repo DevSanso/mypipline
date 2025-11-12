@@ -9,6 +9,7 @@ mod loader;
 mod args;
 mod types;
 mod executor;
+mod constant;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AppConfig {

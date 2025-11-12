@@ -23,8 +23,7 @@ pub struct ConnectionInfos {
 pub struct PlanElement {
     pub conn_name : String,
     pub cmd : String,
-    pub args : Vec<String>,
-    pub timeout : u32,
+    pub args : Vec<String>
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Plan {
