@@ -49,24 +49,31 @@ fn run_command_from_shell(e : &PlanElement, entry_args : &PlanThreadEntryArgs, a
 
     if args.is_none() {
         let shell_param = ShellParam {
-            sep: e.args[0],
-            next: e.args[1],
+            sep: e.args[0].clone(),
+            next: e.args[1].clone(),
             args: vec![],
         };
 
-        let res_set = conn.execute(real.as_str(), &[shell_param])?;
+        let res_set = conn.execute(real.as_str(), &[shell_param]).map_err(|e| {
+            CommonError::new(&CommonErrorList::InvalidApiCall, e.to_string())
+        })?;
         copy_execute_result_set(&mut ret, &res_set)?;
         return Ok(ret);
     }
 
     for param in args.unwrap().cols_data {
         let shell_param = ShellParam {
-            sep: e.args[0],
-            next: e.args[1],
-            args: param.into(),
+            sep: e.args[0].clone(),
+            next: e.args[1].clone(),
+            args: param.iter().fold(Vec::with_capacity(param.len()), |mut v, x| {
+                v.push(x.to_string());
+                v
+            }),
         };
 
-        let res_set = conn.execute(real.as_str(), &[shell_param])?;
+        let res_set = conn.execute(real.as_str(), &[shell_param]).map_err(|e| {
+            CommonError::new(&CommonErrorList::InvalidApiCall, e.to_string())
+        })?;
         copy_execute_result_set(&mut ret, &res_set)?;
     }
 
@@ -85,12 +92,14 @@ fn run_command_from_rdb(e : &PlanElement, entry_args : &PlanThreadEntryArgs, arg
     let conn = conn_item.get_value();
 
     if args.is_none() {
-        let res_set = conn.execute(real.as_str(), &[])?;
+        let res_set = conn.execute(real.as_str(), &[]).map_err(|err| {
+            CommonError::new(&CommonErrorList::InvalidApiCall, err.to_string())
+        })?;
         copy_execute_result_set(&mut ret, &res_set)?;
         return Ok(ret);
     }
 
-    let prev_plan_param = args.unwrap();
+    let prev_plan_param = args.as_ref().unwrap();
     let mut exec_param = vec![RelationalValue::Null; prev_plan_param.cols_name.len()];
     let mut all_row_off = Vec::with_capacity(5);
     for i in 0..off.len() {
@@ -107,7 +116,7 @@ fn run_command_from_rdb(e : &PlanElement, entry_args : &PlanThreadEntryArgs, arg
                                         format!("{} - row - {} > {}", e.conn_name, offset.1, prev_plan_param.cols_data[offset.0].len())).to_result();
             }
 
-            exec_param[i] = prev_plan_param.cols_data[offset.0][offset.1];
+            exec_param[i] = prev_plan_param.cols_data[offset.0][offset.1].clone();
         }
         else {
             if offset.1 >= prev_plan_param.cols_name.len() {
@@ -119,12 +128,14 @@ fn run_command_from_rdb(e : &PlanElement, entry_args : &PlanThreadEntryArgs, arg
         }
     }
 
-    for i in 0..args.unwrap().cols_data.len() {
+    for i in 0..args.as_ref().unwrap().cols_data.len() {
         for off in all_row_off.iter() {
-            exec_param[off] = prev_plan_param.cols_data[i][off];
+            exec_param[*off] = prev_plan_param.cols_data[i][*off].clone();
         }
 
-        let res_set = conn.execute(real.as_str(), exec_param.as_slice())?;
+        let res_set = conn.execute(real.as_str(), exec_param.as_slice()).map_err(|e| {
+            CommonError::new(&CommonErrorList::InvalidApiCall, e.to_string())
+        })?;
         copy_execute_result_set(&mut ret, &res_set)?;
     }
 

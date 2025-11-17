@@ -34,7 +34,7 @@ impl<T : Clone> ExecutorStateMap<T> {
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
 
-        writer.insert(name.clone(), state);
+        writer.insert(name.as_ref().to_string(), state);
         Ok::<(), CommonError>(())
     }
 
@@ -43,7 +43,7 @@ impl<T : Clone> ExecutorStateMap<T> {
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
 
-        Ok::<bool, CommonError>(reader.contains_key(name))
+        Ok::<bool, CommonError>(reader.contains_key(name.as_ref()))
     }
 
     pub fn not_exists<S : AsRef<str>>(self : &Arc<Self>, names: &'_ mut dyn Iterator<Item=S>) -> Result<Vec<String>, impl Error> {
@@ -54,7 +54,7 @@ impl<T : Clone> ExecutorStateMap<T> {
         let mut ret = Vec::with_capacity(5);
         for name in names.next() {
             if !reader.contains_key(name.as_ref()) {
-                ret.push(name.clone());
+                ret.push(name.as_ref().to_string());
             }
         }
 
@@ -66,7 +66,7 @@ impl<T : Clone> ExecutorStateMap<T> {
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
 
-        writer.remove(name);
+        writer.remove(name.as_ref());
         Ok::<(), CommonError>(())
     }
 
@@ -75,7 +75,7 @@ impl<T : Clone> ExecutorStateMap<T> {
             .map_err(|e| {
                 CommonError::new(&CommonErrorList::Critical, e.to_string()) })?;
 
-        reader.get(name).map_or(Ok::<std::option::Option<T>, CommonError>(None) ,|x| {
+        reader.get(name.as_ref()).map_or(Ok::<std::option::Option<T>, CommonError>(None) ,|x| {
             Ok(Some(x.clone()))
         })
     }
@@ -88,9 +88,9 @@ pub(super) struct PlanThreadEntryArgs {
 }
 
 pub(super) struct ExecutorState {
-    plan_states : ExecutorStateMap<PlanState>,
-    db_conn : RDbPoolMap,
-    shell_conn : ShellPoolMap,
+    plan_states : Arc<ExecutorStateMap<PlanState>>,
+    db_conn : Arc<RDbPoolMap>,
+    shell_conn : Arc<ShellPoolMap>,
     /** true : shell, false : db */
     conn_hint : RwLock<HashMap<String, bool>>
 }
@@ -98,21 +98,21 @@ pub(super) struct ExecutorState {
 impl ExecutorState {
     pub fn new() -> Arc<Self> {
         Arc::new(ExecutorState {
-            plan_states : ExecutorStateMap::new(),
-            db_conn : ExecutorStateMap::new(),
-            shell_conn : ExecutorStateMap::new(),
+            plan_states : Arc::new(ExecutorStateMap::new()),
+            db_conn : Arc::new(ExecutorStateMap::new()),
+            shell_conn : Arc::new(ExecutorStateMap::new()),
             conn_hint : RwLock::new(HashMap::new())
         })
     }
     pub fn set_plan_state<S : AsRef<str>>(&self, name : S, state : PlanState) -> Result<(), CommonError> {
-        self.plan_states.set(name, state)?;
+        self.plan_states.set(name.as_ref().to_string(), state)?;
         Ok(())
     }
     pub fn get_plan_state<S : AsRef<str>>(&self, name : S) -> Result<PlanState, CommonError> {
         let p = self.plan_states.get(name.as_ref())?;
 
         if p.is_none() {
-            CommonError::new(&CommonErrorList::NoData, format!("not exists: {}", name)).to_result()
+            CommonError::new(&CommonErrorList::NoData, format!("not exists: {}", name.as_ref())).to_result()
         }
         else {
             Ok(p.unwrap())
@@ -124,7 +124,7 @@ impl ExecutorState {
         })?;
 
         self.shell_conn.set(name.as_ref(), shell_p)?;
-        writer.insert(name, true);
+        writer.insert(name.as_ref().to_string(), true);
         Ok(())
     }
     pub fn set_db_conn_pool<S : AsRef<str>>(&self, name : S, shell_p : RelationalExecutorPool<RelationalValue>) -> Result<(), CommonError> {
@@ -133,7 +133,7 @@ impl ExecutorState {
         })?;
 
         self.db_conn.set(name.as_ref(), shell_p)?;
-        writer.insert(name, false);
+        writer.insert(name.as_ref().to_string(), false);
         Ok(())
     }
     pub fn get_shell_conn_pool<S : AsRef<str>>(&self, name : S) -> Result<RelationalExecutorPool<ShellParam>, CommonError>{
@@ -143,16 +143,16 @@ impl ExecutorState {
 
         let is_shell_opt = reader.get(name.as_ref());
         if is_shell_opt.is_none() {
-            return CommonError::new(&CommonErrorList::NoData, format!("not exists conn hint : {}", name)).to_result();
+            return CommonError::new(&CommonErrorList::NoData, format!("not exists conn hint : {}", name.as_ref())).to_result();
         }
         else if is_shell_opt.unwrap() == &true {
-            return CommonError::new(&CommonErrorList::NotMatchArgs, format!("is shell comm : {}", name)).to_result();
+            return CommonError::new(&CommonErrorList::NotMatchArgs, format!("is shell comm : {}", name.as_ref())).to_result();
         }
 
         let conn_p = self.shell_conn.get(name.as_ref()).expect("get_shell_conn_pool - db_conn get method broken");
 
         if conn_p.is_none() {
-            CommonError::new(&CommonErrorList::NoData, format!("not exists conn : {}", name)).to_result()
+            CommonError::new(&CommonErrorList::NoData, format!("not exists conn : {}", name.as_ref())).to_result()
         } else {
             Ok(conn_p.unwrap())
         }
@@ -165,7 +165,7 @@ impl ExecutorState {
 
         let is_shell_opt = reader.get(name.as_ref());
         if is_shell_opt.is_none() {
-            return CommonError::new(&CommonErrorList::NoData, format!("not exists conn hint : {}", name)).to_result();
+            return CommonError::new(&CommonErrorList::NoData, format!("not exists conn hint : {}", name.as_ref())).to_result();
         }
         else {
             Ok(is_shell_opt.unwrap().clone())
@@ -178,16 +178,16 @@ impl ExecutorState {
 
         let is_shell_opt = reader.get(name.as_ref());
         if is_shell_opt.is_none() {
-            return CommonError::new(&CommonErrorList::NoData, format!("not exists conn hint : {}", name)).to_result();
+            return CommonError::new(&CommonErrorList::NoData, format!("not exists conn hint : {}", name.as_ref())).to_result();
         }
         else if is_shell_opt.unwrap() == &false {
-            return CommonError::new(&CommonErrorList::NotMatchArgs, format!("is shell comm : {}", name)).to_result();
+            return CommonError::new(&CommonErrorList::NotMatchArgs, format!("is shell comm : {}", name.as_ref())).to_result();
         }
 
         let conn_p = self.db_conn.get(name.as_ref()).expect("get_db_conn_pool - db_conn get method broken");
 
         if conn_p.is_none() {
-            CommonError::new(&CommonErrorList::NoData, format!("not exists conn : {}", name)).to_result()
+            CommonError::new(&CommonErrorList::NoData, format!("not exists conn : {}", name.as_ref())).to_result()
         } else {
             Ok(conn_p.unwrap())
         }
