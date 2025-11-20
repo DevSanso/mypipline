@@ -9,6 +9,7 @@ use common_rs::exec::duckdb::create_duckdb_conn_pool;
 use common_rs::exec::interfaces::relational::{RelationalExecutorInfo, RelationalExecutorPool, RelationalValue};
 use common_rs::exec::pg::create_pg_conn_pool;
 use common_rs::exec::scylla::create_scylla_conn_pool;
+use crate::constant;
 use crate::loader::ConfLoader;
 use crate::types::config::conn::ConnectionInfos;
 
@@ -26,21 +27,21 @@ impl GlobalStore {
         let mut exec_pool_map : HashMap<String, RelationalExecutorPool<RelationalValue>> = HashMap::new();
         for info in data.infos {
             let p = match info.conn_type.as_str() {
-                "postgres" => Ok(create_pg_conn_pool(info.conn_name.clone(), RelationalExecutorInfo {
+                constant::CONN_TYPE_PG => Ok(create_pg_conn_pool(info.conn_name.clone(), RelationalExecutorInfo {
                     addr: info.conn_db_addr,
                     name: info.conn_db_name,
                     user: info.conn_db_user,
                     password: info.conn_db_passwd,
                     timeout_sec: info.conn_db_timeout,
                 }, info.conn_max_size)),
-                "scylla"   => Ok(create_scylla_conn_pool(info.conn_name.clone(), vec![RelationalExecutorInfo {
+                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_conn_pool(info.conn_name.clone(), vec![RelationalExecutorInfo {
                     addr: info.conn_db_addr,
                     name: info.conn_db_name,
                     user: info.conn_db_user,
                     password: info.conn_db_passwd,
                     timeout_sec: info.conn_db_timeout,
                 }], info.conn_max_size)),
-                "duckdb"   => Ok(create_duckdb_conn_pool(info.conn_name.clone(), RelationalExecutorInfo {
+                constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_conn_pool(info.conn_name.clone(), RelationalExecutorInfo {
                     addr: info.conn_db_addr,
                     name: info.conn_db_name,
                     user: info.conn_db_user,
