@@ -1,11 +1,11 @@
 use std::cell::RefMut;
 use std::error::Error;
 use std::sync::{Arc, LazyLock, Mutex, OnceLock};
-use common_rs::c_err::CommonError;
-use common_rs::c_err::gen::CommonErrorList;
+use common_rs::c_err::{CommonError, gen::CommonDefaultErrorKind};
 
 use crate::loader::ConfLoader;
-use crate::types::config::{ConnectionInfos, PlanRoot};
+use crate::types::config::plan::*;
+use crate::types::config::conn::*;
 
 pub struct TomlFileConfLoader {
     root_path : String,
@@ -25,14 +25,14 @@ impl TomlFileConfLoader {
     pub fn read_data(&self, data_file : &'static str) -> Result<String, CommonError> {
         match std::fs::read_to_string(std::path::Path::new(&self.root_path).join(data_file)) {
             Ok(data) => Ok(data),
-            Err(e) => Err(CommonError::new(&CommonErrorList::NoData, e.to_string())),
+            Err(e) => Err(CommonError::new(&CommonDefaultErrorKind::NoData, e.to_string())),
         }
     }
 
     pub fn parsing_data<'a, T: for<'de> serde::Deserialize<'de>>(&self, data : &'a str) -> Result<T, CommonError> {
         match toml::from_str(data) {
             Ok(data) => Ok(data),
-            Err(e) => Err(CommonError::new(&CommonErrorList::ParsingFAil, e.to_string())),
+            Err(e) => Err(CommonError::new(&CommonDefaultErrorKind::ParsingFail, e.to_string())),
         }
     }
 }
@@ -63,7 +63,7 @@ impl ConfLoader for TomlFileConfLoader {
         let ret : Result<ConnectionInfos, CommonError> = if self.is_once_load {
             let c = self.once_cache.1.get();
             if c.is_none() {
-                let data = self.read_data("plan.toml")?;
+                let data = self.read_data("conn.toml")?;
                 let root : ConnectionInfos = self.parsing_data(data.as_str())?;
                 let _ = self.once_cache.1.set(root.clone());
                 Ok(root)
@@ -72,7 +72,7 @@ impl ConfLoader for TomlFileConfLoader {
             }
         }
         else {
-            let data = self.read_data("plan.toml")?;
+            let data = self.read_data("conn.toml")?;
             let root : ConnectionInfos = self.parsing_data(data.as_str())?;
             Ok(root)
         };

@@ -1,15 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-use common_rs::c_err::CommonError;
-use common_rs::c_err::gen::CommonErrorList;
+use common_rs::c_err::{CommonError, gen::CommonDefaultErrorKind};
 use common_rs::init::InitConfig;
 use crate::loader::ConfLoader;
 
 mod loader;
 mod args;
 mod types;
-mod executor;
 mod constant;
+mod interpreter;
+mod global;
+mod thread;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AppConfig {
@@ -19,10 +20,10 @@ struct AppConfig {
 
 fn load_app_conf(proc_args : &args::Args) -> Result<AppConfig, impl std::error::Error> {
     let config_data = std::fs::read_to_string(proc_args.config.as_path())
-        .map_err(|e| CommonError::new(&CommonErrorList::InvalidApiCall, e.to_string()))?;
+        .map_err(|e| CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, e.to_string()))?;
     
     let ret = toml::from_str(config_data.as_str())
-        .map_err(|e| CommonError::new(&CommonErrorList::ParsingFAil, e.to_string()));
+        .map_err(|e| CommonError::new(&CommonDefaultErrorKind::ParsingFail, e.to_string()));
     ret
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,7 +40,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conf_loader = loader::toml_file_loader
         ::TomlFileConfLoader::new(app_config.file_loader_root_path, true);
     
-    let a : Box<dyn ConfLoader> = Box::new(conf_loader);
+    let loader : Box<dyn ConfLoader> = Box::new(conf_loader);
+    global::GLOBAL.initialize(loader.as_ref())?;
+    
+    
     
     Ok(())
 }

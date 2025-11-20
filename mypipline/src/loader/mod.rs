@@ -1,8 +1,8 @@
 pub mod toml_file_loader;
 
-use std::error::Error;
 use common_rs::c_err::CommonError;
-use crate::types::config::{PlanRoot, ConnectionInfos};
+use crate::types::config::plan::*;
+use crate::types::config::conn::*;
 
 pub trait ConfLoader {
     fn load_plan(&self) -> Result<PlanRoot, CommonError>;

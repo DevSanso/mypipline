@@ -9,5 +9,5 @@ resolver = "2"
 clap = { version = "4.5.27", features = ["derive"] }
 toml = "0.8.19"
 serde = { version = "1.0.219", features = ["derive"]  }
-
-common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", tag="v0.1.1"}
+mlua = { version = "0.11", features = ["lua54", "vendored"] }
+common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", branch="master"}

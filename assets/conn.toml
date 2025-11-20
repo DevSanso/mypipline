@@ -1,0 +1,19 @@
+[connection.service]
+ip = "127.0.0.1"
+port = 5432
+database = "service"
+user = "user"
+password = "user"
+type = "postgres"
+timeout = 0
+max_conn = 10
+
+[connection.data_store]
+ip = "127.0.0.1"
+port = 5432
+database = "data_store"
+user = "user"
+password = "user"
+type = "mysql"
+timeout = 0
+max_conn = 10

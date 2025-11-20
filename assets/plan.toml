@@ -1,0 +1,15 @@
+
+
+
+[plan.plan1]
+interval = {connection="", second=5}
+type     = "query"
+chain = [
+    {connection="service", query="select 1", auto_commit=false},
+    {connection="data_store", query="insert into testing(num) values($1) ", auto_commit=false},
+]
+
+[plan.plan2]
+interval = {connection="service", second=5}
+type     = "script"
+script   = {lang="lua", file = "tseting.lua"}
