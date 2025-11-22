@@ -2,10 +2,23 @@ use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanChainBindParam {
+    pub idx : usize,
+    pub row : usize,
+    pub col : usize,
+    pub chain_idx : usize
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanChainArgs {
+    pub data  : String,
+    pub idx   : usize
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChain {
     pub conn_name : String,
     pub cmd : String,
-    pub args : Vec<String>
+    pub bind : Vec<PlanChainBindParam>,
+    pub args : Vec<PlanChainArgs>
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanInterval {

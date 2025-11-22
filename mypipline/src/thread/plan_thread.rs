@@ -7,12 +7,13 @@ use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::logger::{log_debug, log_error};
 use crate::global::GLOBAL;
 use crate::thread::query_executor::QueryExecutor;
+use crate::thread::types::PlanThreadStateRunSet;
 use crate::types::config::plan::{Plan, PlanInterval};
 
 pub(super) struct PlanThreadEntry {
     name : String,
     plan : Plan,
-    run_state : Arc<RwLock<HashSet<String>>>,
+    run_state : Arc<PlanThreadStateRunSet>,
 
     signal   : Arc<crate::thread::types::PlanThreadSignal>
 }
@@ -58,23 +59,17 @@ fn plan_thread_sleep(interval : &PlanInterval) -> Result<(), CommonError> {
     Ok(())
 }
 
-fn set_plan_thread_stop_state(state : Arc<RwLock<HashSet<String>>>) {
-    let w = state.write().map_err(|e| {
-        CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
-    });
-
-    if w.is_err() {
-        let panic_msg = CommonError::extend(&CommonDefaultErrorKind::Critical, "thread state b")
-        log_error!("{}", w.err())
-    }
-}
-
 pub fn plan_thread_fn(entry : PlanThreadEntry) {
     let sig = entry.signal.clone();
     loop {
         if sig.get_kill() {
             log_debug!("{} - {} chk kill signal", func!(), entry.name);
-            entry.run_state.
+            if let Err(w) = entry.run_state.delete(&entry.name) {
+                let panic_msg = CommonError::extend(&CommonDefaultErrorKind::Critical, "thread state b", w);
+                log_error!("panic");
+                log_error!("{}", panic_msg);
+                panic!("{}", panic_msg);
+            }
             break;
         }
 
@@ -92,7 +87,7 @@ pub fn plan_thread_fn(entry : PlanThreadEntry) {
 }
 
 impl PlanThreadEntry {
-    pub fn new(name : String, plan : Plan, run_state :  Arc<RwLock<HashSet<String>>>, signal :  Arc<crate::thread::types::PlanThreadSignal>) -> Self {
+    pub fn new(name : String, plan : Plan, run_state :  Arc<PlanThreadStateRunSet>, signal :  Arc<crate::thread::types::PlanThreadSignal>) -> Self {
         PlanThreadEntry {
             name,
             plan,

@@ -2,7 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use common_rs::c_err::{CommonError, gen::CommonDefaultErrorKind};
 use common_rs::init::InitConfig;
+use common_rs::logger::{log_debug, log_info};
+use common_rs::signal::SIGINT;
 use crate::loader::ConfLoader;
+use crate::thread::PlanThreadExecutor;
 
 mod loader;
 mod args;
@@ -43,7 +46,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let loader : Box<dyn ConfLoader> = Box::new(conf_loader);
     global::GLOBAL.initialize(loader.as_ref())?;
     
+    let plan_data = loader.load_plan().map_err(|e| {
+        CommonError::extend(&CommonDefaultErrorKind::InitFailed, "load failed plan", e)
+    })?;
+    let mut cancel = PlanThreadExecutor::daemon(plan_data);
     
+    loop {
+        if common_rs::signal::is_set_signal(SIGINT) {
+            log_info!("stop main loop");
+            cancel.cancel();
+            log_info!("stop daemon thread");
+            break;
+        }
+        
+        std::thread::sleep(std::time::Duration::from_secs(10));
+    }
     
     Ok(())
 }

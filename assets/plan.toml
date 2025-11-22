@@ -5,8 +5,12 @@
 interval = {connection="", second=5}
 type     = "query"
 chain = [
-    {connection="service", query="select 1", auto_commit=false},
-    {connection="data_store", query="insert into testing(num) values($1) ", auto_commit=false},
+    {connection="service", query="select $1", args =[
+        { data = "hello", idx = 0}
+    ]},
+    {connection="data_store", query="insert into testing(num) values($1) ", bind=[
+        {  idx = 0, row = 0, col = 0}
+    ]},
 ]
 
 [plan.plan2]
