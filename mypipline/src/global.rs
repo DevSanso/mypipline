@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
+use common_rs::c_core::collection::pool::ThreadSafePool;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::duckdb::create_duckdb_conn_pool;
@@ -13,9 +14,12 @@ use crate::constant;
 use crate::loader::ConfLoader;
 use crate::types::config::conn::ConnectionInfos;
 
+use crate::interpreter::pool::{create_lua_interpreter_pool, InterpreterPool};
+
 #[derive(Default)]
 pub struct GlobalStore {
     exec_pool_map : HashMap<String, RelationalExecutorPool<RelationalValue>>,
+    exec_interpreter_map : HashMap<&'static str, InterpreterPool>
 }
 
 impl GlobalStore {
@@ -52,8 +56,10 @@ impl GlobalStore {
             }?;
             exec_pool_map.insert(info.conn_name.clone(), p);
         }
-
-        Ok(GlobalStore { exec_pool_map })
+        
+        let mut script_interpreter = HashMap::new();
+        script_interpreter.insert("lua", create_lua_interpreter_pool(100));
+        Ok(GlobalStore { exec_pool_map,  exec_interpreter_map : script_interpreter })
     }
 }
 pub struct GlobalLayout {
@@ -68,6 +74,18 @@ impl GlobalLayout {
         })?;
 
         let opt = reader.exec_pool_map.get(&name.as_ref().to_string());
+        if opt.is_none() {
+            return CommonError::new(&CommonDefaultErrorKind::NoData, format!("not exists {}", name.as_ref())).to_result();
+        }
+        Ok(opt.unwrap().clone())
+    }
+    
+    pub fn get_interpreter_pool<S : AsRef<str>>(&self, name : S) -> Result<InterpreterPool, CommonError> {
+        let reader = self.store.read().map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+
+        let opt = reader.exec_interpreter_map.get(name.as_ref());
         if opt.is_none() {
             return CommonError::new(&CommonDefaultErrorKind::NoData, format!("not exists {}", name.as_ref())).to_result();
         }

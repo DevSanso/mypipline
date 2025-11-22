@@ -26,7 +26,7 @@ pub struct Plan {
     pub type_name : String,
     
     pub script    : Option<PlanScript>,
-    pub chain     : Option<PlanChain>
+    pub chain     : Option<Vec<PlanChain>>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,12 +1,13 @@
-mod lua;
+pub(self) mod impl_vm;
+pub mod pool;
 
 use common_rs::c_err::CommonError;
 
 pub trait Interpreter {
-    fn load_script_file<S : AsRef<str>>(&self, name : S, filename : S) -> Result<(),CommonError>;
-    fn load_script_code<S : AsRef<str>>(&self, name : S, script : S) -> Result<(),CommonError>;
-    fn drop_script<S : AsRef<str>>(&self, name : S) -> Result<(),CommonError>;
+    fn load_script_file(&self, name : String, filename : &'_ str) -> Result<(),CommonError>;
+    fn load_script_code(&self, name : String, script : &'_ str) -> Result<(),CommonError>;
+    fn drop_script(&self, name : &'_ str) -> Result<(),CommonError>;
     fn gc(&self)  -> Result<(),CommonError>;
 
-    fn run<S : AsRef<str>>(&self, name : S) -> Result<(),CommonError>;
+    fn run(&self, name : &'_ str) -> Result<(),CommonError>;
 }

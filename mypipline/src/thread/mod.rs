@@ -1,5 +1,6 @@
 mod plan_thread;
 pub(self) mod types;
+mod query_executor;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
@@ -11,8 +12,8 @@ use common_rs::logger::*;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::th::simple::{new_simple_thread_manager, SimpleManagerKind, SimpleThreadManager};
+use crate::thread::plan_thread::PlanThreadEntry;
 use crate::types::config::plan::PlanRoot;
-use crate::global::GLOBAL;
 
 pub struct PlanThreadExecutorCancel {
     exec : Arc<PlanThreadExecutor>,
@@ -49,12 +50,12 @@ impl PlanThreadExecutor {
 
         while !self.stop_flag.load(Ordering::Relaxed) {
             let run_plan = self.check_run_interval_plan().map_err(|e| {
-               CommonError::extend(&CommonDefaultErrorKind::Etc, "get failed interval plan", e)
+                CommonError::extend(&CommonDefaultErrorKind::Etc, "get failed interval plan", e)
             })?;
 
             for p in run_plan {
                 log_debug!("{} - try start plan {}", func!(), p);
-
+                PlanThreadEntry::
             }
 
             let current_ms = (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() % 1000) as u64;

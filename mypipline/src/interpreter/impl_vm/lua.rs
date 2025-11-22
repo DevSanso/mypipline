@@ -118,8 +118,8 @@ impl LuaInterpreter {
         Ok(array)
     }
 
-    pub fn new() -> Result<Arc<Self>,CommonError> {
-        let mut lua_vm = Lua::new();
+    pub fn new() -> Result<Self,CommonError> {
+        let lua_vm = Lua::new();
         let inject_fn = lua_vm.create_function(Self::lua_exec_conn_wrapper).map_err(|e| {
            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper init failed")
         })?;
@@ -128,27 +128,27 @@ impl LuaInterpreter {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
 
-        Ok(Arc::new(LuaInterpreter {
+        Ok(LuaInterpreter {
             lua: lua_vm,
             state: RwLock::new(LuaInterpreterState::default()),
-        }))
+        })
     }
 }
 
 impl Interpreter for LuaInterpreter {
-    fn load_script_file<S: AsRef<str>>(&self, name: S, filename: S) -> Result<(), CommonError> {
-        let script = std::fs::read_to_string(name.as_ref()).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, format!("read failed {} file", filename.as_ref()))
+    fn load_script_file(&self, name: String, filename: &'_ str) -> Result<(), CommonError> {
+        let script = std::fs::read_to_string(name.as_str()).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, format!("read failed {} file : {}", filename, e.to_string()))
         })?;
 
         self.set_script(name, script)
     }
 
-    fn load_script_code<S: AsRef<str>>(&self, name: S, script: S) -> Result<(), CommonError> {
-        self.set_script(name, script.as_ref().to_string())
+    fn load_script_code(&self, name: String, script: &'_ str) -> Result<(), CommonError> {
+        self.set_script(name, script.to_string())
     }
 
-    fn drop_script<S: AsRef<str>>(&self, name: S) -> Result<(), CommonError> {
+    fn drop_script(&self, name: &'_ str) -> Result<(), CommonError> {
         self.delete_script(name)
     }
 
@@ -158,12 +158,12 @@ impl Interpreter for LuaInterpreter {
         })
     }
 
-    fn run<S: AsRef<str>>(&self, name: S) -> Result<(), CommonError> {
-        let script = self.get_script(name.as_ref())?;
+    fn run(&self, name: &'_ str) -> Result<(), CommonError> {
+        let script = self.get_script(name)?;
         let chunk = self.lua.load(script);
 
         chunk.exec().map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::ExecuteFail, format!("execute failed {}, {}", name.as_ref(), e.to_string()))
+            CommonError::new(&CommonDefaultErrorKind::ExecuteFail, format!("execute failed {}, {}", name, e.to_string()))
         })
     }
 }
