@@ -44,12 +44,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ::TomlFileConfLoader::new(app_config.file_loader_root_path, true);
     
     let loader : Box<dyn ConfLoader> = Box::new(conf_loader);
-    global::GLOBAL.initialize(loader.as_ref())?;
+    global::GLOBAL.initialize(loader)?;
     
-    let plan_data = loader.load_plan().map_err(|e| {
-        CommonError::extend(&CommonDefaultErrorKind::InitFailed, "load failed plan", e)
-    })?;
-    let mut cancel = PlanThreadExecutor::daemon(plan_data);
+    let mut cancel = PlanThreadExecutor::daemon();
     
     loop {
         if common_rs::signal::is_set_signal(SIGINT) {
@@ -62,5 +59,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::thread::sleep(std::time::Duration::from_secs(10));
     }
     
+    global::GLOBAL.close()?;
     Ok(())
 }

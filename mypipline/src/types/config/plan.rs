@@ -42,7 +42,7 @@ pub struct Plan {
     pub chain     : Option<Vec<PlanChain>>
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlanRoot {
     pub plan : HashMap<String, Plan>
 }
