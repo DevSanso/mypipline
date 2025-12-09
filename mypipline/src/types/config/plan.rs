@@ -4,9 +4,9 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChainBindParam {
     pub idx : usize,
-    pub row : usize,
     pub col : usize,
-    pub chain_idx : usize
+    pub key : String,
+    pub id : String
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChainArgs {
@@ -15,6 +15,7 @@ pub struct PlanChainArgs {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChain {
+    pub id : String,
     pub conn_name : String,
     pub cmd : String,
     pub bind : Vec<PlanChainBindParam>,

@@ -5,11 +5,11 @@
 interval = {connection="", second=5}
 type     = "query"
 chain = [
-    {connection="service", query="select $1", args =[
-        { data = "hello", idx = 0}
+    {id="first", connection="service", query="select $1 as num", args =[
+        { data = "hello", idx = 1}
     ]},
-    {connection="data_store", query="insert into testing(num) values($1) ", bind=[
-        {  idx = 0, row = 0, col = 0}
+    {id="final", connection="data_store", query="insert into testing(num) values($1) ", bind=[
+        {  id="first", key="num", col=1, idx=1 }
     ]},
 ]
 

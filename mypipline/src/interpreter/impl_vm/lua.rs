@@ -6,7 +6,7 @@ use mlua::prelude::{Lua, LuaResult};
 
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
-use common_rs::exec::interfaces::relational::RelationalValue;
+use common_rs::exec::interfaces::pair::PairValueEnum;
 use mlua::{Error, Table};
 use crate::global::GLOBAL;
 use crate::interpreter::Interpreter;
@@ -21,6 +21,41 @@ pub struct LuaInterpreter {
 }
 
 impl LuaInterpreter {
+
+    fn convert_pair_to_lua_type(vm : &Lua, data : PairValueEnum) -> LuaResult<mlua::Value> {
+        let d = match data {
+            PairValueEnum::Double(d) => {mlua::Value::Number(d)}
+            PairValueEnum::Int(i) => {mlua::Value::Number(i as f64)}
+            PairValueEnum::BigInt(bi) => {mlua::Value::Number(bi as f64)}
+            PairValueEnum::String(s) => {
+                let ls = vm.create_string(s.as_bytes())?;
+                mlua::Value::String(ls)
+            }
+            PairValueEnum::Bin(bin) => {
+                let ls = vm.create_string(bin.as_slice())?;
+                mlua::Value::String(ls)
+            }
+            PairValueEnum::Bool(b) => {mlua::Value::Boolean(b)}
+            PairValueEnum::Float(f) => {mlua::Value::Number(f as f64)}
+            PairValueEnum::Array(a) => {
+                let table = vm.create_table()?;
+                for e in a {
+                    table.push(Self::convert_pair_to_lua_type(vm, e)?)?;
+                }
+                mlua::Value::Table(table)
+            }
+            PairValueEnum::Map(m) => {
+                let table = vm.create_table()?;
+                for (k, v) in m {
+                    let conv = Self::convert_pair_to_lua_type(vm, v)?;
+                    table.set(k, conv)?;
+                }
+                mlua::Value::Table(table)
+            }
+            PairValueEnum::Null => {mlua::Value::NULL}
+        };
+        Ok(d)
+    }
     fn set_script<S : AsRef<str>>(&self, name : S, script : String) -> Result<(),CommonError> {
         let mut writer = self.state.write().map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, "failed get writer lock")
@@ -50,14 +85,14 @@ impl LuaInterpreter {
         )
     }
 
-    fn lua_exec_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<Table> {
+    fn lua_exec_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
         use crate::global::GLOBAL;
 
         let lua_args_len = args.len().map_err(|e| e)?;
         let mut real_args = Vec::with_capacity(lua_args_len.cast_unsigned() as usize);
         for idx in 0..lua_args_len {
             let data : String = args.get(idx).map_err(|e| {e})?;
-            real_args.push(RelationalValue::String(data));
+            real_args.push(PairValueEnum::String(data));
         }
 
         let pool_get_ret = unsafe {
@@ -79,7 +114,7 @@ impl LuaInterpreter {
         })?;
 
         let conn =item.get_value();
-        let conn_ret = conn.execute(cmd.as_ref(), real_args.as_slice()).map_err(|e| {
+        let conn_ret = conn.execute_pair(cmd.as_ref(), &PairValueEnum::Array(real_args)).map_err(|e| {
             Error::RuntimeError(e.get_cause())
         });
 
@@ -89,33 +124,8 @@ impl LuaInterpreter {
         } else {
           Ok(conn_ret.unwrap())
         }?;
-        let mut array = vm.create_table()?;
 
-        for row in conn_data.cols_data.iter() {
-            let mut convert_row = Vec::with_capacity(row.len());
-            for row_data in row.iter() {
-                let convert_value = match row_data {
-                    RelationalValue::Double(d) => mlua::Value::Number(c_double::from(*d)),
-                    RelationalValue::Int(i) => mlua::Value::Number(c_double::from(*i)),
-                    RelationalValue::BigInt(i) => mlua::Value::Integer(*i),
-                    RelationalValue::String(s) => {
-                        let s = vm.create_string(s.as_str().as_bytes())?;
-                        mlua::Value::String(s)
-                    }
-                    RelationalValue::Bin(b) => {
-                        let s = vm.create_string(String::from_utf8_lossy(b.as_slice()).to_string().as_str().as_bytes())?;
-                        mlua::Value::String(s)
-                    },
-                    RelationalValue::Bool(b) => mlua::Value::Boolean(*b),
-                    RelationalValue::Float(f) => mlua::Value::Number(c_double::from(*f)),
-                    RelationalValue::Null => mlua::Value::Nil,
-                };
-
-                convert_row.push(convert_value);
-            }
-            array.push(convert_row)?;
-        }
-        Ok(array)
+        Self::convert_pair_to_lua_type(vm, conn_data)
     }
 
     pub fn new() -> Result<Self,CommonError> {

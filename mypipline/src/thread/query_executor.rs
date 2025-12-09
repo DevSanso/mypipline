@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use common_rs::c_core::func;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
-use common_rs::exec::interfaces::relational::{RelationalExecuteResultSet, RelationalValue};
+use common_rs::exec::interfaces::pair::*;
 use common_rs::logger::log_debug;
 use crate::global::GLOBAL;
 use crate::types::config::plan::{PlanChain, PlanChainArgs};
@@ -12,54 +12,51 @@ pub(super) struct QueryExecutor<'a> {
 }
 
 struct QueryExecutorBindBuilder {
-    v : Vec<RelationalValue>
+    m : HashMap<String, PairValueEnum>,
+    v : Vec<PairValueEnum>
 }
 
-impl QueryExecutorBindBuilder {
-    pub fn new(cap : usize) -> QueryExecutorBindBuilder {
-        QueryExecutorBindBuilder { v : Vec::with_capacity(cap) }
-    }
-
-    pub fn as_bind_slice(&self) -> &'_[RelationalValue] {self.v.as_slice()}
-    pub fn set_args(mut self, p : &PlanChain) -> Self {
-        for a in p.args.as_slice() {
-            if a.idx >= self.v.capacity() {
-                self.v.resize(a.idx + 1, RelationalValue::Null);
-            }
-            self.v[a.idx] = (RelationalValue::String(a.data.clone()));
+fn create_query_bind_array(p : &'_ PlanChain, m : &HashMap::<String, PairValueEnum>) -> Result<PairValueEnum, CommonError> {
+    let mut v = Vec::with_capacity(3);
+    for arg in p.args.iter() {
+        if arg.idx - 1 <= 0 {
+            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, format!("{} Index out of bounds: {}", p.id, arg.idx - 1)).to_result();
         }
-
-        self
-    }
-
-    pub fn set_bind(mut self, p : &PlanChain, m : &HashMap::<usize, RelationalExecuteResultSet>) -> Self {
-        for b in p.bind.as_slice() {
-            let set = &m[&b.chain_idx];
-            let row = &set.cols_data[b.row];
-            let data = row[b.col].clone();
-
-            if b.idx >= self.v.capacity() {
-                self.v.resize(b.idx + 1, RelationalValue::Null);
-            }
-
-            self.v[b.idx] = data;
+        
+        if arg.idx > v.len() {
+            v.resize(arg.idx + 2, PairValueEnum::Null);
         }
-        self
+        
+        v[arg.idx - 1] = PairValueEnum::String(arg.data.clone());
     }
+    
+    for bind in p.bind.iter() {
+        if bind.idx - 1 <= 0 {
+            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, format!("{} Index out of bounds: {}", p.id, bind.idx - 1)).to_result();
+        }
+        
+        if bind.idx > v.len() {
+            v.resize(bind.idx + 2, PairValueEnum::Null);
+        }
+        
+        if let Some(ele) = m.get(bind.id.as_str()) {
+            if let PairValueEnum::Array(arr) = ele {
+                v[bind.idx - 1] = arr.get(bind.col - 1).map_or_else(|| PairValueEnum::Null, Clone::clone);
+            }
+        }
+    }
+
+    Ok(PairValueEnum::Array(v))
 }
 
 impl<'a> QueryExecutor<'a> {
     pub fn run(&self) -> Result<(), CommonError> {
-        let data_map = HashMap::<usize, RelationalExecuteResultSet>::new();
+        let mut data_map = HashMap::<String, PairValueEnum>::new();
 
         for item in self.chain {
             let p = GLOBAL.get_exec_pool(item.conn_name.as_str()).map_err(|e| {
                 CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "get pool failed", e)
             })?;
-
-            let builder = QueryExecutorBindBuilder::new(10)
-                .set_args(item)
-                .set_bind(item, &data_map);
 
             let mut p_item = p.get_owned(()).map_err(|e| {
                 CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "get pool item failed", e)
@@ -68,10 +65,16 @@ impl<'a> QueryExecutor<'a> {
             let conn = p_item.get_value();
 
             log_debug!("{} - try running, query={}", func!(), item.cmd.as_str());
+            
+            let bind_data = create_query_bind_array(item, &data_map).map_err(|e| {
+                CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "bind data create failed", e)
+            })?;
 
-            conn.execute(item.cmd.as_str(), builder.as_bind_slice()).map_err(|e| {
+            let ret = conn.execute_pair(item.cmd.as_str(), &bind_data).map_err(|e| {
                 CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "query run failed", e)
             })?;
+            
+            data_map.insert(item.id.clone(), ret);
         }
         
         Ok(())

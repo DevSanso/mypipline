@@ -5,10 +5,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
-use common_rs::exec::duckdb::create_duckdb_conn_pool;
-use common_rs::exec::interfaces::relational::{RelationalExecutorInfo, RelationalExecutorPool, RelationalValue};
-use common_rs::exec::pg::create_pg_conn_pool;
-use common_rs::exec::scylla::create_scylla_conn_pool;
+use common_rs::exec::duckdb::create_duckdb_pair_conn_pool;
+use common_rs::exec::interfaces::pair::*;
+use common_rs::exec::pg::create_pg_pair_conn_pool;
+use common_rs::exec::scylla::create_scylla_pair_conn_pool;
 use crate::constant;
 use crate::loader::ConfLoader;
 use crate::types::config::conn::ConnectionInfos;
@@ -18,7 +18,7 @@ use crate::types::config::plan::{Plan, PlanRoot};
 
 #[derive(Default)]
 pub struct GlobalStore {
-    exec_pool_map : HashMap<String, RelationalExecutorPool<RelationalValue>>,
+    exec_pool_map : HashMap<String, PairExecutorPool>,
     exec_interpreter_map : HashMap<&'static str, InterpreterPool>,
 
     plans : PlanRoot
@@ -41,21 +41,21 @@ impl GlobalStore {
             if self.exec_pool_map.contains_key(&info.conn_name) {continue}
 
             let p = match info.conn_type.as_str() {
-                constant::CONN_TYPE_PG => Ok(create_pg_conn_pool(info.conn_name.clone(), RelationalExecutorInfo {
+                constant::CONN_TYPE_PG => Ok(create_pg_pair_conn_pool(info.conn_name.clone(), PairExecutorInfo {
                     addr: info.conn_db_addr,
                     name: info.conn_db_name,
                     user: info.conn_db_user,
                     password: info.conn_db_passwd,
                     timeout_sec: info.conn_db_timeout,
                 }, info.conn_max_size)),
-                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_conn_pool(info.conn_name.clone(), vec![RelationalExecutorInfo {
+                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_pair_conn_pool(info.conn_name.clone(), vec![PairExecutorInfo {
                     addr: info.conn_db_addr,
                     name: info.conn_db_name,
                     user: info.conn_db_user,
                     password: info.conn_db_passwd,
                     timeout_sec: info.conn_db_timeout,
                 }], info.conn_max_size)),
-                constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_conn_pool(info.conn_name.clone(), RelationalExecutorInfo {
+                constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_pair_conn_pool(info.conn_name.clone(), PairExecutorInfo {
                     addr: info.conn_db_addr,
                     name: info.conn_db_name,
                     user: info.conn_db_user,
@@ -93,7 +93,7 @@ pub struct GlobalLayout {
 }
 
 impl GlobalLayout {
-    pub fn get_exec_pool<S : AsRef<str>>(&self, name : S) -> Result< RelationalExecutorPool<RelationalValue>, CommonError > {
+    pub fn get_exec_pool<S : AsRef<str>>(&self, name : S) -> Result<PairExecutorPool, CommonError > {
         if self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
