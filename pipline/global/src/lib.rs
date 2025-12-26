@@ -1,3 +1,7 @@
+pub mod constant;
+mod etc;
+
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{LazyLock, OnceLock};
 use std::sync::Arc;
@@ -9,15 +13,15 @@ use common_rs::exec::duckdb::create_duckdb_pair_conn_pool;
 use common_rs::exec::interfaces::pair::*;
 use common_rs::exec::pg::create_pg_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
-use crate::constant;
-use crate::loader::ConfLoader;
-use crate::types::config::conn::ConnectionInfos;
 
-use crate::interpreter::pool::{create_lua_interpreter_pool, InterpreterPool};
-use crate::types::config::plan::{Plan, PlanRoot};
+use mypip_types::interface::ConfLoader;
+use mypip_types::typealias::InterpreterPool;
+use mypip_types::config::conn::ConnectionInfos;
+
+use mypip_types::config::plan::{Plan, PlanRoot};
 
 #[derive(Default)]
-pub struct GlobalStore {
+struct GlobalStore {
     exec_pool_map : HashMap<String, PairExecutorPool>,
     exec_interpreter_map : HashMap<&'static str, InterpreterPool>,
 
@@ -29,7 +33,7 @@ impl GlobalStore {
         let mut store = GlobalStore { exec_pool_map: HashMap::new(),  exec_interpreter_map : HashMap::new(), plans : PlanRoot::default() };
         store.reset(loader)?;
 
-        store.exec_interpreter_map.insert("lua", create_lua_interpreter_pool(100));
+        store.exec_interpreter_map.insert("lua", crate::etc::create_lua_interpreter_pool(100));
         Ok(store)
     }
 
@@ -86,14 +90,14 @@ impl GlobalStore {
         Ok(())
     }
 }
-pub struct GlobalLayout {
+pub struct GlobalImpl {
     store : Arc<RwLock<GlobalStore>>,
     loader : OnceLock<Box<dyn ConfLoader>>,
     once : AtomicBool
 }
 
-impl GlobalLayout {
-    pub fn get_exec_pool<S : AsRef<str>>(&self, name : S) -> Result<PairExecutorPool, CommonError > {
+impl mypip_types::interface::GlobalLayout for GlobalImpl {
+    fn get_exec_pool(&self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError > {
         if self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -108,7 +112,7 @@ impl GlobalLayout {
         }
         Ok(opt.unwrap().clone())
     }
-    pub fn get_plan(&self) -> Result<HashMap<String, Plan>, CommonError> {
+    fn get_plan(&self) -> Result<HashMap<String, Plan>, CommonError> {
         if self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -117,10 +121,10 @@ impl GlobalLayout {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
         })?;
 
-       Ok( reader.plans.plan.clone())
+        Ok( reader.plans.plan.clone())
     }
-    
-    pub fn get_interpreter_pool<S : AsRef<str>>(&self, name : S) -> Result<InterpreterPool, CommonError> {
+
+    fn get_interpreter_pool(&self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError> {
         if self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -135,7 +139,7 @@ impl GlobalLayout {
         }
         Ok(opt.unwrap().clone())
     }
-    pub fn close(&self) -> Result<(), CommonError> {
+    fn close(&self) -> Result<(), CommonError> {
         if self.once.load(Ordering::Relaxed) == true {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
         }
@@ -148,7 +152,7 @@ impl GlobalLayout {
         Ok(())
     }
 
-    pub fn reset(&self) -> Result<(), CommonError> {
+    fn reset(&self) -> Result<(), CommonError> {
         if self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -162,7 +166,7 @@ impl GlobalLayout {
         Ok(())
     }
 
-    pub fn initialize(&self, loader : Box<dyn ConfLoader>) -> Result<(), CommonError> {
+    fn initialize(&self, loader : Box<dyn ConfLoader>) -> Result<(), CommonError> {
         if self.once.load(Ordering::Relaxed) == true {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
         }
@@ -183,8 +187,8 @@ impl GlobalLayout {
     }
 }
 
-pub static GLOBAL: LazyLock<GlobalLayout> = LazyLock::new(|| {
-    GlobalLayout {
+pub static GLOBAL: LazyLock<GlobalImpl> = LazyLock::new(|| {
+    GlobalImpl {
         store : Arc::new(RwLock::new(GlobalStore::default()) ),
         once : AtomicBool::new(false),
         loader : OnceLock::new(),

@@ -4,8 +4,9 @@ use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::*;
 use common_rs::logger::log_debug;
-use crate::global::GLOBAL;
-use crate::types::config::plan::{PlanChain, PlanChainArgs};
+use mypip_global::GLOBAL;
+use mypip_types::config::plan::{PlanChain, PlanChainArgs};
+use mypip_types::interface::GlobalLayout;
 
 pub(super) struct QueryExecutor<'a> {
     chain : &'a [PlanChain]
@@ -54,7 +55,8 @@ impl<'a> QueryExecutor<'a> {
         let mut data_map = HashMap::<String, PairValueEnum>::new();
 
         for item in self.chain {
-            let p = GLOBAL.get_exec_pool(item.conn_name.as_str()).map_err(|e| {
+            let pool_name = item.conn_name.as_str();
+            let p = GLOBAL.get_exec_pool(pool_name.into()).map_err(|e| {
                 CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "get pool failed", e)
             })?;
 

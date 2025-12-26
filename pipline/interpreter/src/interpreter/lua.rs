@@ -7,16 +7,28 @@ use mlua::prelude::{Lua, LuaResult};
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::PairValueEnum;
-use mlua::{Error, Table};
-use crate::global::GLOBAL;
-use crate::interpreter::Interpreter;
+use mlua::{Error, Table, UserData};
+use mypip_types::interface::GlobalLayout;
+
+const INJECT_GLOBAL_NAME : &'static str = "__inject_global_ptr";
+const CONN_GET_FN_NAME : &'static str = "data_conn_get";
 
 #[derive(Default)]
 struct LuaInterpreterState {
     scripts : HashMap<String, String>,
 }
+
+struct LuaInterpreterGlobalInject {
+    global_ref : &'static dyn GlobalLayout,
+}
+
+impl UserData for LuaInterpreterGlobalInject {
+
+}
+
 pub struct LuaInterpreter {
     lua : Lua,
+    global_ref : &'static dyn GlobalLayout,
     state : RwLock<LuaInterpreterState>,
 }
 
@@ -86,7 +98,10 @@ impl LuaInterpreter {
     }
 
     fn lua_exec_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
-        use crate::global::GLOBAL;
+        let inject: mlua::AnyUserData = vm.globals().get(INJECT_GLOBAL_NAME)?;
+
+        let global = inject.borrow::<LuaInterpreterGlobalInject>()?
+            .global_ref;
 
         let lua_args_len = args.len().map_err(|e| e)?;
         let mut real_args = Vec::with_capacity(lua_args_len.cast_unsigned() as usize);
@@ -96,7 +111,7 @@ impl LuaInterpreter {
         }
 
         let pool_get_ret = unsafe {
-            GLOBAL.get_exec_pool(conn_name.as_str())
+            global.get_exec_pool(conn_name.into())
         }.map_err(|e| {
             match e.func_ref()[0].3.name() {
                 "CommonDefaultErrorKind::NoData" => Error::BadArgument {
@@ -122,30 +137,38 @@ impl LuaInterpreter {
             item.dispose();
             Err(conn_ret.err().unwrap())
         } else {
-          Ok(conn_ret.unwrap())
+            Ok(conn_ret.unwrap())
         }?;
 
         Self::convert_pair_to_lua_type(vm, conn_data)
     }
 
-    pub fn new() -> Result<Self,CommonError> {
+    pub fn new(global : &'static dyn GlobalLayout) -> Result<Self,CommonError> {
         let lua_vm = Lua::new();
-        let inject_fn = lua_vm.create_function(Self::lua_exec_conn_wrapper).map_err(|e| {
-           CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper init failed")
+        let inject_global = lua_vm.create_userdata(LuaInterpreterGlobalInject {
+            global_ref : global
+        }).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper global init failed")
         })?;
-
-        lua_vm.globals().set("data_conn_get", inject_fn).map_err(|e| {
+        let inject_fn = lua_vm.create_function(Self::lua_exec_conn_wrapper).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper init failed")
+        })?;
+        lua_vm.globals().set(INJECT_GLOBAL_NAME, inject_global).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get global set failed")
+        })?;
+        lua_vm.globals().set(CONN_GET_FN_NAME, inject_fn).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
 
         Ok(LuaInterpreter {
             lua: lua_vm,
+            global_ref : global,
             state: RwLock::new(LuaInterpreterState::default()),
         })
     }
 }
 
-impl Interpreter for LuaInterpreter {
+impl crate::Interpreter for LuaInterpreter {
     fn load_script_file(&self, name: String, filename: &'_ str) -> Result<(), CommonError> {
         let script = std::fs::read_to_string(name.as_str()).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, format!("read failed {} file : {}", filename, e.to_string()))

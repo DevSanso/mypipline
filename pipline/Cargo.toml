@@ -1,0 +1,3 @@
+[workspace]
+members = ["global" , "interpreter", "loader", "main", "thread", "types"]
+resolver = "2"

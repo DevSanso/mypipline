@@ -1,0 +1,12 @@
+[package]
+name = "mypip_global"
+version = "0.1.0"
+edition = "2021"
+
+resolver = "2"
+
+[dependencies]
+common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", branch="master"}
+mypip_types = {path = "../types"}
+mypip_loader = {path = "../loader"}
+mypip_interpreter = {path= "../interpreter"}

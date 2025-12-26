@@ -9,10 +9,12 @@ use common_rs::logger::*;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::th::simple::{new_simple_thread_manager, SimpleManagerKind, SimpleThreadManager};
-use crate::global::GLOBAL;
-use crate::thread::plan_thread::{plan_thread_fn, PlanThreadEntry};
-use crate::thread::types::{PlanThreadSignal, PlanThreadStateRunSet};
-use crate::types::config::plan::PlanRoot;
+use crate::plan_thread::{plan_thread_fn, PlanThreadEntry};
+use crate::types::{PlanThreadSignal, PlanThreadStateRunSet};
+use mypip_types::config::plan::PlanRoot;
+
+use mypip_global::GLOBAL;
+use mypip_types::interface::GlobalLayout;
 
 pub struct PlanThreadExecutorCancel {
     exec : Arc<PlanThreadExecutor>,

@@ -1,9 +1,9 @@
 use std::sync::OnceLock;
 use common_rs::c_err::{CommonError, gen::CommonDefaultErrorKind};
 
-use crate::loader::ConfLoader;
-use crate::types::config::plan::*;
-use crate::types::config::conn::*;
+use mypip_types::interface::ConfLoader;
+use mypip_types::config::plan::*;
+use mypip_types::config::conn::*;
 
 pub struct TomlFileConfLoader {
     root_path : String,

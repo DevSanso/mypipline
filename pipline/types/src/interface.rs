@@ -1,0 +1,32 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
+use common_rs::c_core::collection::pool::ThreadSafePool;
+use crate::config::plan::{Plan, PlanRoot};
+use common_rs::exec::interfaces::pair::PairExecutorPool;
+use common_rs::c_err::CommonError;
+use crate::config::conn::ConnectionInfos;
+use crate::typealias::InterpreterPool;
+
+pub trait ConfLoader : Send + Sync {
+    fn load_plan(&self) -> Result<PlanRoot, CommonError>;
+    fn load_connection(&self) -> Result<ConnectionInfos, CommonError>;
+}
+
+pub trait Interpreter {
+    fn load_script_file(&self, name : String, filename : &'_ str) -> Result<(),CommonError>;
+    fn load_script_code(&self, name : String, script : &'_ str) -> Result<(),CommonError>;
+    fn drop_script(&self, name : &'_ str) -> Result<(),CommonError>;
+    fn gc(&self)  -> Result<(),CommonError>;
+
+    fn run(&self, name : &'_ str) -> Result<(),CommonError>;
+}
+
+pub trait GlobalLayout {
+    fn get_exec_pool(&self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError >;
+    fn get_plan(&self) -> Result<HashMap<String, Plan>, CommonError>;
+    fn get_interpreter_pool(&self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError>;
+    fn close(&self) -> Result<(), CommonError>;
+    fn reset(&self) -> Result<(), CommonError>;
+    fn initialize(&self, loader : Box<dyn ConfLoader>) -> Result<(), CommonError>;
+}
