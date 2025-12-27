@@ -1,0 +1,14 @@
+[plan.plan1]
+interval = {connection="service", second=5}
+type     = "query"
+chain = [
+    {id="first", connection="service", query="select $1 as num", args =[
+        { data = "hello", idx = 1}
+    ]},
+    {id="final", connection="data_store", query="set", args = [
+        {data = "testing", idx=1}
+    ], bind=[
+        {  id="first", key="num", idx=2 }
+    ]},
+]
+

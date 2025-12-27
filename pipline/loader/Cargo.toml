@@ -10,3 +10,11 @@ toml = "0.8.19"
 serde = { version = "1.0.219", features = ["derive"]  }
 common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", branch="master"}
 mypip_types = {path = "../types"}
+
+[dev-dependencies]
+mypip_loader = {path = "../loader"}
+common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", branch="master"}
+
+[[test]]
+name = "test_loader"
+path = "tests/test_loader.rs"

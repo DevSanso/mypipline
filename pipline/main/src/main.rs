@@ -33,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     common_rs::init::init_common(InitConfig {
         log_level: (&proc_args).log_level.as_str(),
         log_file: Some(log_file.unwrap().as_str()),
+        log_file_size_mb : proc_args.log_max_size
     })?;
 
     let app_config = load_app_conf(&proc_args)?;

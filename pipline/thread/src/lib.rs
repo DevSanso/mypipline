@@ -1,6 +1,5 @@
-mod plan_thread;
+mod entry;
 pub(self) mod types;
-mod query_executor;
 mod executor;
 mod constant;
 

@@ -9,7 +9,7 @@ use common_rs::logger::*;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::th::simple::{new_simple_thread_manager, SimpleManagerKind, SimpleThreadManager};
-use crate::plan_thread::{plan_thread_fn, PlanThreadEntry};
+use crate::entry::{plan_thread_fn, PlanThreadEntry};
 use crate::types::{PlanThreadSignal, PlanThreadStateRunSet};
 use mypip_types::config::plan::PlanRoot;
 
@@ -108,7 +108,6 @@ impl PlanThreadExecutor {
             true => 1000 - current_ms,
             false => 999
         };
-        log_debug!("{} - sleep millie second {}", func!(), sleep_time);
         std::thread::sleep(Duration::from_millis(sleep_time));
     }
     
@@ -140,7 +139,12 @@ impl PlanThreadExecutor {
                     CommonError::extend(&CommonDefaultErrorKind::Etc, "create signal failed", e)
                 })?;
 
-                let entry = PlanThreadEntry::new(p.clone(), plan[&p].clone(), self.run_state.clone(), signal);
+                let run_state_entry = self.run_state.clone();
+                run_state_entry.create(p.as_str()).map_err(|e| {
+                    CommonError::extend(&CommonDefaultErrorKind::Etc, "create run state failed", e)
+                })?;
+
+                let entry = PlanThreadEntry::new(p.clone(), plan[&p].clone(), run_state_entry, signal);
 
                 if let Err(e) = self.manager.execute("".to_string(), &plan_thread_fn, entry) {
                     let log = CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "executor failed", e);

@@ -4,7 +4,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChainBindParam {
     pub idx : usize,
-    pub col : usize,
+    pub col : Option<usize>,
     pub key : String,
     pub id : String
 }
@@ -16,14 +16,14 @@ pub struct PlanChainArgs {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChain {
     pub id : String,
-    pub conn_name : String,
-    pub cmd : String,
-    pub bind : Vec<PlanChainBindParam>,
-    pub args : Vec<PlanChainArgs>
+    pub connection: String,
+    pub query: String,
+    pub bind : Option<Vec<PlanChainBindParam>>,
+    pub args : Option<Vec<PlanChainArgs>>
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanInterval {
-    pub connection : String,
+    pub connection : Option<String>,
     pub second     : u64
 }
 

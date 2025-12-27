@@ -12,6 +12,7 @@ use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::duckdb::create_duckdb_pair_conn_pool;
 use common_rs::exec::interfaces::pair::*;
 use common_rs::exec::pg::create_pg_pair_conn_pool;
+use common_rs::exec::redis::create_redis_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
 
 use mypip_types::interface::ConfLoader;
@@ -41,35 +42,44 @@ impl GlobalStore {
         let data : ConnectionInfos = loader.load_connection().map_err(|e| {
             CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "global store load fail conn",e)
         })?;
-        for info in data.infos {
-            if self.exec_pool_map.contains_key(&info.conn_name) {continue}
+        for info in data.connection {
+            let conn_key = info.0;
+            let conn_info = info.1;
+            if self.exec_pool_map.contains_key(&conn_key) {continue}
 
-            let p = match info.conn_type.as_str() {
-                constant::CONN_TYPE_PG => Ok(create_pg_pair_conn_pool(info.conn_name.clone(), PairExecutorInfo {
-                    addr: info.conn_db_addr,
-                    name: info.conn_db_name,
-                    user: info.conn_db_user,
-                    password: info.conn_db_passwd,
-                    timeout_sec: info.conn_db_timeout,
-                }, info.conn_max_size)),
-                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_pair_conn_pool(info.conn_name.clone(), vec![PairExecutorInfo {
-                    addr: info.conn_db_addr,
-                    name: info.conn_db_name,
-                    user: info.conn_db_user,
-                    password: info.conn_db_passwd,
-                    timeout_sec: info.conn_db_timeout,
-                }], info.conn_max_size)),
-                constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_pair_conn_pool(info.conn_name.clone(), PairExecutorInfo {
-                    addr: info.conn_db_addr,
-                    name: info.conn_db_name,
-                    user: info.conn_db_user,
-                    password: info.conn_db_passwd,
-                    timeout_sec: info.conn_db_timeout,
-                }, info.conn_max_size)),
-                _ => Err(CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", info.conn_type)))
+            let p = match conn_info.conn_type.as_str() {
+                constant::CONN_TYPE_PG => Ok(create_pg_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
+                    addr: conn_info.conn_addr,
+                    name: conn_info.conn_name,
+                    user: conn_info.conn_user,
+                    password: conn_info.conn_passwd,
+                    timeout_sec: conn_info.conn_timeout,
+                }, conn_info.max_size)),
+                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_pair_conn_pool(conn_info.conn_name.clone(), vec![PairExecutorInfo {
+                    addr: conn_info.conn_addr,
+                    name: conn_info.conn_name,
+                    user: conn_info.conn_user,
+                    password: conn_info.conn_passwd,
+                    timeout_sec: conn_info.conn_timeout,
+                }], conn_info.max_size)),
+                constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
+                    addr: conn_info.conn_addr,
+                    name: conn_info.conn_name,
+                    user: conn_info.conn_user,
+                    password: conn_info.conn_passwd,
+                    timeout_sec: conn_info.conn_timeout,
+                }, conn_info.max_size)),
+                constant::CONN_TYPE_REDIS => Ok(create_redis_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
+                    addr: conn_info.conn_addr,
+                    name: conn_info.conn_name,
+                    user: conn_info.conn_user,
+                    password: conn_info.conn_passwd,
+                    timeout_sec: conn_info.conn_timeout,
+                }, conn_info.max_size)),
+                _ => Err(CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", conn_info.conn_type)))
             }?;
 
-            self.exec_pool_map.insert(info.conn_name.clone(), p);
+            self.exec_pool_map.insert(conn_key.clone(), p);
         }
 
         Ok(())
@@ -98,7 +108,7 @@ pub struct GlobalImpl {
 
 impl mypip_types::interface::GlobalLayout for GlobalImpl {
     fn get_exec_pool(&self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError > {
-        if self.once.load(Ordering::Relaxed) {
+        if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
 
@@ -113,7 +123,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         Ok(opt.unwrap().clone())
     }
     fn get_plan(&self) -> Result<HashMap<String, Plan>, CommonError> {
-        if self.once.load(Ordering::Relaxed) {
+        if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
 
@@ -125,7 +135,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
     }
 
     fn get_interpreter_pool(&self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError> {
-        if self.once.load(Ordering::Relaxed) {
+        if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
 
@@ -140,8 +150,8 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         Ok(opt.unwrap().clone())
     }
     fn close(&self) -> Result<(), CommonError> {
-        if self.once.load(Ordering::Relaxed) == true {
-            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
+        if !self.once.load(Ordering::Relaxed) == true {
+            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
 
         let mut writer = self.store.write().map_err(|e| {
@@ -153,7 +163,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
     }
 
     fn reset(&self) -> Result<(), CommonError> {
-        if self.once.load(Ordering::Relaxed) {
+        if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
 

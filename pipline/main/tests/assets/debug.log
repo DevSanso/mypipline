@@ -1,0 +1,31 @@
+2025-12-28 00:24:43.356 DEBUG mypip_thread::executor mypip_thread::executor::PlanThreadExecutor::start_loop - try start plan plan1
+2025-12-28 00:24:43.411 DEBUG tokio_postgres::prepare preparing query s0: SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint  AS unix_timestamp
+2025-12-28 00:24:43.411 DEBUG tokio_postgres::query executing statement s0 with parameters: []
+2025-12-28 00:24:43.412 DEBUG mypip_thread::entry plan_thread_sleep sleep 2178 ms
+2025-12-28 00:24:46.741 DEBUG mypip_thread::entry::query mypip_thread::entry::query::QueryEntry<'_>::run - try running, query=select $1 as num
+2025-12-28 00:24:46.741 DEBUG tokio_postgres::prepare preparing query s1: select $1 as num
+2025-12-28 00:24:46.742 DEBUG tokio_postgres::query executing statement s1 with parameters: ["hello"]
+2025-12-28 00:24:46.742 DEBUG mypip_thread::entry::query mypip_thread::entry::query::QueryEntry<'_>::run - try running, query=set
+2025-12-28 00:24:46.747 ERROR mypip_thread::entry ThreadId(3) : cause=query run failed plan1:final
+ message=execute error failed
+stack(3):
+err=CommonDefaultErrorKind::ExecuteFail, file=thread/src/entry/query.rs:80, func={{closure}}, cause=query run failed plan1:final
+err=CommonDefaultErrorKind::ThirdLibCallFail, file=/home/cpnet/.cargo/git/checkouts/common_rs-cb3642fa6f55c3f6/92efc2e/common_exec_redis/src/db_conn.rs:139, func={{closure}}, cause=set args failed
+err=CommonDefaultErrorKind::NoSupport, file=/home/cpnet/.cargo/git/checkouts/common_rs-cb3642fa6f55c3f6/92efc2e/common_exec_redis/src/db_conn.rs:38, func=set_pair_to_redis_args, cause=not support type : Null
+
+2025-12-28 00:25:32.357 INFO test_main stop main loop
+2025-12-28 00:25:33.316 INFO mypip_thread::executor stop daemon
+2025-12-28 00:25:33.316 INFO test_main stop daemon thread
+2025-12-28 00:26:11.922 DEBUG mypip_thread::executor mypip_thread::executor::PlanThreadExecutor::start_loop - try start plan plan1
+2025-12-28 00:26:11.976 DEBUG tokio_postgres::prepare preparing query s0: SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint  AS unix_timestamp
+2025-12-28 00:26:11.976 DEBUG tokio_postgres::query executing statement s0 with parameters: []
+2025-12-28 00:26:11.977 DEBUG mypip_thread::entry plan_thread_sleep sleep 3614 ms
+2025-12-28 00:26:16.725 DEBUG mypip_thread::entry::query mypip_thread::entry::query::QueryEntry<'_>::run - try running, query=select $1 as num
+2025-12-28 00:26:39.142 DEBUG mypip_thread::executor mypip_thread::executor::PlanThreadExecutor::start_loop - try start plan plan1
+2025-12-28 00:26:39.196 DEBUG tokio_postgres::prepare preparing query s0: SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint  AS unix_timestamp
+2025-12-28 00:26:39.197 DEBUG tokio_postgres::query executing statement s0 with parameters: []
+2025-12-28 00:26:39.197 DEBUG mypip_thread::entry plan_thread_sleep sleep 1393 ms
+2025-12-28 00:26:41.709 DEBUG mypip_thread::entry::query mypip_thread::entry::query::QueryEntry<'_>::run - try running, query=select $1 as num
+2025-12-28 00:26:45.902 DEBUG tokio_postgres::prepare preparing query s1: select $1 as num
+2025-12-28 00:26:45.902 DEBUG tokio_postgres::query executing statement s1 with parameters: ["hello"]
+2025-12-28 00:26:45.903 DEBUG mypip_thread::entry::query mypip_thread::entry::query::QueryEntry<'_>::run - try running, query=set

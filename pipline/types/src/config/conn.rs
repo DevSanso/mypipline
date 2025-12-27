@@ -1,19 +1,25 @@
+use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionInfo {
-    pub conn_type : String,
-    pub conn_name : String,
-    pub conn_max_size : usize,
+    #[serde(alias = "max_conn")]
+    pub max_size : usize,
 
-    pub conn_db_type : String,
-    pub conn_db_name : String,
-    pub conn_db_user : String,
-    pub conn_db_addr : String,
-    pub conn_db_passwd : String,
-    pub conn_db_timeout : u32
+    #[serde(alias = "type")]
+    pub conn_type : String,
+    #[serde(alias = "conn_name")]
+    pub conn_name : String,
+    #[serde(alias = "user")]
+    pub conn_user : String,
+    #[serde(alias = "addr")]
+    pub conn_addr : String,
+    #[serde(alias = "password")]
+    pub conn_passwd : String,
+    #[serde(alias = "timeout")]
+    pub conn_timeout : u32
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionInfos {
-    pub infos : Vec<ConnectionInfo>
+    pub connection: HashMap<String, ConnectionInfo>
 }

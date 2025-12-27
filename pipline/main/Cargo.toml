@@ -17,4 +17,8 @@ mypip_global = {path = "../global"}
 mypip_types = {path = "../types"}
 mypip_thread = {path = "../thread"}
 mypip_loader = {path = "../loader"}
-mypip_interpreter = {path = "../interpreter"}
+
+
+[[test]]
+name = "test_main"
+path = "tests/test_main.rs"
