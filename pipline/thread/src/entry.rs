@@ -74,6 +74,8 @@ fn plan_thread_sleep(interval : &PlanInterval) -> Result<(), CommonError> {
 
 pub fn plan_thread_fn(entry : PlanThreadEntry) {
     let sig = entry.signal.clone();
+    log_debug!("{:?} - start plan thread {}", std::thread::current().id(), entry.name);
+
     loop {
         if sig.get_kill() {
             log_debug!("{} - {} chk kill signal", func!(), entry.name);
