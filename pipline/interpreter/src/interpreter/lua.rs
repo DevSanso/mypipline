@@ -11,12 +11,7 @@ use mlua::{Error, Table, UserData};
 use mypip_types::interface::GlobalLayout;
 
 const INJECT_GLOBAL_NAME : &'static str = "__inject_global_ptr";
-const CONN_GET_FN_NAME : &'static str = "data_conn_get";
-
-#[derive(Default)]
-struct LuaInterpreterState {
-    scripts : HashMap<String, String>,
-}
+const CONN_GET_FN_NAME : &'static str = "mypip_data_conn_get";
 
 struct LuaInterpreterGlobalInject {
     global_ref : &'static dyn GlobalLayout,
@@ -29,7 +24,6 @@ impl UserData for LuaInterpreterGlobalInject {
 pub struct LuaInterpreter {
     lua : Lua,
     global_ref : &'static dyn GlobalLayout,
-    state : RwLock<LuaInterpreterState>,
 }
 
 impl LuaInterpreter {
@@ -68,33 +62,13 @@ impl LuaInterpreter {
         };
         Ok(d)
     }
-    fn set_script<S : AsRef<str>>(&self, name : S, script : String) -> Result<(),CommonError> {
-        let mut writer = self.state.write().map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, "failed get writer lock")
+    
+    fn get_script<S : AsRef<str>>(&self, plan_name : S) -> Result<String,CommonError> {
+        let ret = self.global_ref.get_script_data(plan_name.as_ref()).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "get script data failed", e)
         })?;
-
-        writer.scripts.insert(String::from(name.as_ref()), script);
-        Ok(())
-    }
-
-    fn delete_script<S : AsRef<str>>(&self, name : S) -> Result<(),CommonError> {
-        let mut writer = self.state.write().map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, "failed get writer lock")
-        })?;
-
-        writer.scripts.remove(name.as_ref());
-        Ok(())
-    }
-
-    fn get_script<S : AsRef<str>>(&self, name : S) -> Result<String,CommonError> {
-        let reader = self.state.read().map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, "failed get read lock")
-        })?;
-
-        reader.scripts.get(name.as_ref()).map_or_else(
-            || Err(CommonError::new(&CommonDefaultErrorKind::NoData, "script not found")),
-            |s| Ok(s.clone())
-        )
+        
+        Ok(ret)
     }
 
     fn lua_exec_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
@@ -162,29 +136,12 @@ impl LuaInterpreter {
 
         Ok(LuaInterpreter {
             lua: lua_vm,
-            global_ref : global,
-            state: RwLock::new(LuaInterpreterState::default()),
+            global_ref : global
         })
     }
 }
 
 impl crate::Interpreter for LuaInterpreter {
-    fn load_script_file(&self, name: String, filename: &'_ str) -> Result<(), CommonError> {
-        let script = std::fs::read_to_string(name.as_str()).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, format!("read failed {} file : {}", filename, e.to_string()))
-        })?;
-
-        self.set_script(name, script)
-    }
-
-    fn load_script_code(&self, name: String, script: &'_ str) -> Result<(), CommonError> {
-        self.set_script(name, script.to_string())
-    }
-
-    fn drop_script(&self, name: &'_ str) -> Result<(), CommonError> {
-        self.delete_script(name)
-    }
-
     fn gc(&self) -> Result<(), CommonError> {
         self.lua.gc_collect().map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "gc call failed")

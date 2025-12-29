@@ -25,13 +25,17 @@ use mypip_types::config::plan::{Plan, PlanRoot};
 struct GlobalStore {
     exec_pool_map : HashMap<String, PairExecutorPool>,
     exec_interpreter_map : HashMap<&'static str, InterpreterPool>,
-
+    script_data_map : HashMap<String, String>,
     plans : PlanRoot
 }
 
 impl GlobalStore {
     fn from_conf_loader(loader : &'_ dyn ConfLoader) -> Result<GlobalStore, CommonError> {
-        let mut store = GlobalStore { exec_pool_map: HashMap::new(),  exec_interpreter_map : HashMap::new(), plans : PlanRoot::default() };
+        let mut store = GlobalStore { exec_pool_map: HashMap::new(),
+            exec_interpreter_map : HashMap::new(),
+            plans : PlanRoot::default(),
+            script_data_map: HashMap::new()
+        };
         store.reset(loader)?;
 
         store.exec_interpreter_map.insert("lua", crate::etc::create_lua_interpreter_pool(100));
@@ -94,9 +98,22 @@ impl GlobalStore {
         self.plans.plan.extend(load.plan);
         Ok(())
     }
+    fn reset_scripts_file(&mut self, loader : &'_ dyn ConfLoader) -> Result<(), CommonError> {
+        let map = loader.load_script_data().map_err(|e| { 
+            CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "global store load fail scripts",e)
+        })?;
+        
+        self.script_data_map.retain(|x,_| {
+           map.get(x).is_some() 
+        });
+        
+        self.script_data_map.extend(map);
+        Ok(())
+    }
     fn reset(&mut self, loader : &'_ dyn ConfLoader) -> Result<(), CommonError> {
         self.reset_db_pool(loader)?;
         self.reset_plan(loader)?;
+        self.reset_scripts_file(loader)?;
         Ok(())
     }
 }
@@ -194,6 +211,30 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         self.once.store(true, Ordering::Relaxed);
 
         Ok(())
+    }
+
+    fn get_script_data(&self, name: &'_ str) -> Result<String, CommonError> {
+        let reader = self.store.read().map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+        
+        if let Some(data) = reader.script_data_map.get(name) {
+            return Ok(data.clone());
+        }
+        
+        drop(reader);
+        
+        let read_data = std::fs::read_to_string(name).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+
+        let mut writer = self.store.write().map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+        
+        writer.script_data_map.insert(name.to_string(), read_data.clone());
+        
+        Ok(read_data)
     }
 }
 

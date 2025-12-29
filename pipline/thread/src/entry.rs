@@ -10,8 +10,10 @@ use query::QueryEntry;
 use crate::types::PlanThreadStateRunSet;
 use mypip_types::config::plan::{Plan, PlanInterval};
 use mypip_types::interface::GlobalLayout;
+use crate::entry::script::ScriptEntry;
 
 mod query;
+mod script;
 
 pub(super) struct PlanThreadEntry {
     name : String,
@@ -123,23 +125,10 @@ impl PlanThreadEntry {
             Ok(x)
         })?;
 
-        if info.lang != "lua" {
-            return CommonError::new(&CommonDefaultErrorKind::NoSupport, "only support lua").to_result();
-        }
-
-        let p = GLOBAL.get_interpreter_pool("lua".into()).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::Etc, "failed get pool", e)
+        let entry = ScriptEntry::new(self.name.clone(), info);
+        entry.run().map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "run script failed", e)
         })?;
-
-        let mut item = p.get_owned(()).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::Etc, "failed get item", e)
-        })?;
-
-        let vm = item.get_value();
-        vm.run(info.file.as_str()).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "failed run script", e)
-        })?;
-
         Ok(())
     }
 
@@ -151,7 +140,6 @@ impl PlanThreadEntry {
         })?;
 
         let exec = QueryEntry::new(self.name.as_str(), info.as_slice());
-
         exec.run()
     }
 }

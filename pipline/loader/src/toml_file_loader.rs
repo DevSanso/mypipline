@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::OnceLock;
 use common_rs::c_err::{CommonError, gen::CommonDefaultErrorKind};
 
@@ -76,5 +77,24 @@ impl ConfLoader for TomlFileConfLoader {
         };
 
         ret
+    }
+
+    fn load_script_data(&self) -> Result<HashMap<String, String>, CommonError> {
+        let plans = self.load_plan().map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::InitFailed, "load plan failed", e)
+        })?;
+
+        let mut map = HashMap::new();
+        for (name, p) in plans.plan {
+            if let Some(script) = p.script {
+                let data = std::fs::read_to_string(script.file.as_str()).map_err(|e| {
+                    CommonError::new(&CommonDefaultErrorKind::SystemCallFail, format!("read failed script {}, {}", script.file.as_str(), e))
+                })?;
+
+                map.insert(name, data);
+            }
+        }
+
+        Ok(map)
     }
 }

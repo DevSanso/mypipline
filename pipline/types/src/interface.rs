@@ -11,14 +11,12 @@ use crate::typealias::InterpreterPool;
 pub trait ConfLoader : Send + Sync {
     fn load_plan(&self) -> Result<PlanRoot, CommonError>;
     fn load_connection(&self) -> Result<ConnectionInfos, CommonError>;
+
+    fn load_script_data(&self) -> Result<HashMap<String, String>, CommonError>;
 }
 
 pub trait Interpreter {
-    fn load_script_file(&self, name : String, filename : &'_ str) -> Result<(),CommonError>;
-    fn load_script_code(&self, name : String, script : &'_ str) -> Result<(),CommonError>;
-    fn drop_script(&self, name : &'_ str) -> Result<(),CommonError>;
     fn gc(&self)  -> Result<(),CommonError>;
-
     fn run(&self, name : &'_ str) -> Result<(),CommonError>;
 }
 
@@ -29,4 +27,5 @@ pub trait GlobalLayout {
     fn close(&self) -> Result<(), CommonError>;
     fn reset(&self) -> Result<(), CommonError>;
     fn initialize(&self, loader : Box<dyn ConfLoader>) -> Result<(), CommonError>;
+    fn get_script_data(&self, name : &'_ str) -> Result<String, CommonError>;
 }
