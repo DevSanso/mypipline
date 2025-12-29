@@ -3,14 +3,10 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    #[arg(short, long)]
-    pub config: PathBuf,
-    #[arg(short, long)]
-    pub log_file : Option<String>,
-    #[arg(short, long, default_value="info")]
-    pub log_level : String,
-    #[clap(short, long, default_value="10")]
-    pub log_max_size : u64
+    #[clap(long)]
+    pub base_dir : String,
+    #[clap(long)]
+    pub identifier : String,
 }
 
 pub fn parsing() -> Args {

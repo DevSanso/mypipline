@@ -2,6 +2,7 @@ pub mod constant;
 mod etc;
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{LazyLock, OnceLock};
 use std::sync::Arc;
@@ -14,7 +15,9 @@ use common_rs::exec::interfaces::pair::*;
 use common_rs::exec::pg::create_pg_pair_conn_pool;
 use common_rs::exec::redis::create_redis_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
-
+use common_rs::init::InitConfig;
+use mypip_loader::toml_file_loader;
+use mypip_types::config::app::AppConfig;
 use mypip_types::interface::ConfLoader;
 use mypip_types::typealias::InterpreterPool;
 use mypip_types::config::conn::ConnectionInfos;
@@ -26,21 +29,10 @@ struct GlobalStore {
     exec_pool_map : HashMap<String, PairExecutorPool>,
     exec_interpreter_map : HashMap<&'static str, InterpreterPool>,
     script_data_map : HashMap<String, String>,
-    plans : PlanRoot
+    plans : PlanRoot,
 }
 
 impl GlobalStore {
-    fn from_conf_loader(loader : &'_ dyn ConfLoader) -> Result<GlobalStore, CommonError> {
-        let mut store = GlobalStore { exec_pool_map: HashMap::new(),
-            exec_interpreter_map : HashMap::new(),
-            plans : PlanRoot::default(),
-            script_data_map: HashMap::new()
-        };
-        store.reset(loader)?;
-
-        store.exec_interpreter_map.insert("lua", crate::etc::create_lua_interpreter_pool(100));
-        Ok(store)
-    }
 
     fn reset_db_pool(&mut self, loader : &'_ dyn ConfLoader) -> Result<(), CommonError> {
         let data : ConnectionInfos = loader.load_connection().map_err(|e| {
@@ -117,10 +109,20 @@ impl GlobalStore {
         Ok(())
     }
 }
+
+pub struct GlobalOnceLockStore {
+    identifier : String,
+    base_dir : String,
+    config_dir: String,
+    log_dir    : String,
+    script_dir : String
+}
 pub struct GlobalImpl {
     store : Arc<RwLock<GlobalStore>>,
     loader : OnceLock<Box<dyn ConfLoader>>,
-    once : AtomicBool
+    once : AtomicBool,
+
+    once_store : OnceLock<GlobalOnceLockStore>,
 }
 
 impl mypip_types::interface::GlobalLayout for GlobalImpl {
@@ -193,21 +195,62 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         Ok(())
     }
 
-    fn initialize(&self, loader : Box<dyn ConfLoader>) -> Result<(), CommonError> {
+    fn initialize(&self, identifier : String, base_dir : String) -> Result<(), CommonError> {
         if self.once.load(Ordering::Relaxed) == true {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
         }
-        let loader =self.loader.get_or_init(move || loader);
+
+        let config_dir = std::path::Path::new(&base_dir).join("config").to_string_lossy().to_string();
+        let log_dir = std::path::Path::new(&base_dir).join("log").join(format!("{}.log", identifier.as_str())).to_string_lossy().to_string();
+        let script_dir = std::path::Path::new(&base_dir).join("scripts").to_string_lossy().to_string();
+        
+        let loader_config_dir = config_dir.clone();
+        let loader_script_dir = script_dir.clone();
+        let loader_identifier = identifier.clone();
+        let loader =self.loader.get_or_init(move || {
+            let loader = toml_file_loader
+            ::TomlFileConfLoader::new(loader_config_dir, loader_script_dir, loader_identifier, true);
+            Box::new(loader)
+        });
+        
+        let app_config = loader.load_app_config()?;
+
+        common_rs::init::init_common(InitConfig {
+            log_level: app_config.log_level.as_str(),
+            log_file: if app_config.log_type == "console" {
+                None
+            } else {
+                Some(log_dir.as_str())
+            },
+            log_file_size_mb: app_config.log_max_size_mb,
+        })?;
+
+        self.once_store.get_or_init(move || {
+           GlobalOnceLockStore {
+               identifier,
+               base_dir,
+               config_dir,
+               log_dir,
+               script_dir,
+           }
+        });
 
         let mut writer = self.store.write().map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
         })?;
 
-        let store = GlobalStore::from_conf_loader(loader.as_ref()).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::InitFailed, "global store load failed",e)
-        })?;
+        let mut store = GlobalStore {
+            exec_pool_map: HashMap::new(),
+            exec_interpreter_map : HashMap::new(),
+            plans : PlanRoot::default(),
+            script_data_map: HashMap::new(),
+        };
+
+        store.reset(loader.as_ref())?;
+        store.exec_interpreter_map.insert("lua", crate::etc::create_lua_interpreter_pool(100));
 
         *writer = store;
+
         self.once.store(true, Ordering::Relaxed);
 
         Ok(())
@@ -219,22 +262,10 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         })?;
         
         if let Some(data) = reader.script_data_map.get(name) {
-            return Ok(data.clone());
+            Ok(data.clone())
+        } else {
+            CommonError::new(&CommonDefaultErrorKind::NoData, format!("not exists {}", name)).to_result()
         }
-        
-        drop(reader);
-        
-        let read_data = std::fs::read_to_string(name).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
-        })?;
-
-        let mut writer = self.store.write().map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
-        })?;
-        
-        writer.script_data_map.insert(name.to_string(), read_data.clone());
-        
-        Ok(read_data)
     }
 }
 
@@ -243,5 +274,6 @@ pub static GLOBAL: LazyLock<GlobalImpl> = LazyLock::new(|| {
         store : Arc::new(RwLock::new(GlobalStore::default()) ),
         once : AtomicBool::new(false),
         loader : OnceLock::new(),
+        once_store: Default::default(),
     }
 });

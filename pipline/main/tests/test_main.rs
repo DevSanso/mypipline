@@ -12,20 +12,8 @@ use common_rs::logger::log_info;
 
 #[test]
 fn test_main() -> Result<(), Box<dyn std::error::Error>> {
-    let log_file = env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/assets/debug.log";
-    let toml_file = env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/assets";
-
-    common_rs::init::init_common(InitConfig {
-        log_level: "debug",
-        log_file: Some(log_file.as_str()),
-        log_file_size_mb : 1
-    })?;
-
-    let conf_loader = toml_file_loader
-    ::TomlFileConfLoader::new(toml_file, true);
-
-    let loader : Box<dyn ConfLoader> = Box::new(conf_loader);
-    GLOBAL.initialize(loader)?;
+    let base_dir = env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/assets";
+    GLOBAL.initialize("test".to_string(), base_dir)?;
 
     let mut cancel = PlanThreadExecutor::daemon();
 

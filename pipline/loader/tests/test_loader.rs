@@ -15,7 +15,7 @@ fn load_conn_toml_file_loader() -> Result<(), CommonError> {
     })?;
 
     let conf_loader = toml_file_loader
-    ::TomlFileConfLoader::new(TOML_FILE_DIR.to_string(), true);
+    ::TomlFileConfLoader::new(TOML_FILE_DIR.to_string(), TOML_FILE_DIR.to_string(), "test".to_string(), true);
 
     let loader : Box<dyn ConfLoader> = Box::new(conf_loader);
 
