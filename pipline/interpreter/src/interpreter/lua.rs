@@ -7,7 +7,7 @@ use mlua::prelude::{Lua, LuaResult};
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::PairValueEnum;
-use mlua::{Error, Table, UserData};
+use mlua::{Error, Table, UserData, Value};
 use mypip_types::interface::GlobalLayout;
 
 const INJECT_GLOBAL_NAME : &'static str = "__inject_global_ptr";
@@ -26,6 +26,16 @@ pub struct LuaInterpreter {
     global_ref : &'static dyn GlobalLayout,
 }
 
+macro_rules! make_lua_error_message {
+    ($e:expr) => {
+        {
+            use common_rs::c_core::utils::macros::func;
+            format!("{}:{} - {:.256}", func!(), line!(), $e)
+        }
+
+    };
+}
+
 impl LuaInterpreter {
 
     fn convert_pair_to_lua_type(vm : &Lua, data : PairValueEnum) -> LuaResult<mlua::Value> {
@@ -34,26 +44,56 @@ impl LuaInterpreter {
             PairValueEnum::Int(i) => {mlua::Value::Number(i as f64)}
             PairValueEnum::BigInt(bi) => {mlua::Value::Number(bi as f64)}
             PairValueEnum::String(s) => {
-                let ls = vm.create_string(s.as_bytes())?;
+                let ls = vm.create_string(s.as_bytes()).map_err(|e| {
+                    Error::BadArgument {
+                        to: None,
+                        pos: 0,
+                        name: None,
+                        cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
+                    }
+                })?;
                 mlua::Value::String(ls)
             }
             PairValueEnum::Bin(bin) => {
-                let ls = vm.create_string(bin.as_slice())?;
+                let ls = vm.create_string(bin.as_slice()).map_err(|e| {
+                    Error::BadArgument {
+                        to: None,
+                        pos: 0,
+                        name: None,
+                        cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
+                    }
+                })?;
                 mlua::Value::String(ls)
             }
             PairValueEnum::Bool(b) => {mlua::Value::Boolean(b)}
             PairValueEnum::Float(f) => {mlua::Value::Number(f as f64)}
             PairValueEnum::Array(a) => {
-                let table = vm.create_table()?;
+                let table = vm.create_table().map_err(|e| {
+                    Error::RuntimeError(make_lua_error_message!(e.to_string()))
+                })?;;
                 for e in a {
-                    table.push(Self::convert_pair_to_lua_type(vm, e)?)?;
+                    table.push(Self::convert_pair_to_lua_type(vm, e).map_err(|e| {
+                        Error::BadArgument {
+                            to: None,
+                            pos: 0,
+                            name: None,
+                            cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
+                        }
+                    })?)?;
                 }
                 mlua::Value::Table(table)
             }
             PairValueEnum::Map(m) => {
                 let table = vm.create_table()?;
                 for (k, v) in m {
-                    let conv = Self::convert_pair_to_lua_type(vm, v)?;
+                    let conv = Self::convert_pair_to_lua_type(vm, v).map_err(|e| {
+                        Error::BadArgument {
+                            to: None,
+                            pos: 0,
+                            name: None,
+                            cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
+                        }
+                    })?;
                     table.set(k, conv)?;
                 }
                 mlua::Value::Table(table)
@@ -77,11 +117,20 @@ impl LuaInterpreter {
         let global = inject.borrow::<LuaInterpreterGlobalInject>()?
             .global_ref;
 
-        let lua_args_len = args.len().map_err(|e| e)?;
-        let mut real_args = Vec::with_capacity(lua_args_len.cast_unsigned() as usize);
-        for idx in 0..lua_args_len {
-            let data : String = args.get(idx).map_err(|e| {e})?;
-            real_args.push(PairValueEnum::String(data));
+        let mut real_args = Vec::with_capacity(3);
+
+        for pair in args.sequence_values::<mlua::Value>() {
+            let data = match pair.as_ref().map_err(|e|  {
+                Error::RuntimeError(make_lua_error_message!(e))
+            })? {
+                Value::Nil => PairValueEnum::Null,
+                Value::Boolean(b) => PairValueEnum::Bool(*b),
+                Value::Integer(i) => PairValueEnum::BigInt(*i),
+                Value::Number(n) => PairValueEnum::Double(*n),
+                Value::String(s) => PairValueEnum::String(s.to_string_lossy().to_string()),
+                _ => return Err(Error::RuntimeError(make_lua_error_message!(format!("not support {:?} type", pair?))))
+            };
+            real_args.push(data);
         }
 
         let pool_get_ret = unsafe {
@@ -94,17 +143,17 @@ impl LuaInterpreter {
                     name: Some("conn_name".to_string()),
                     cause: Arc::new(Error::RuntimeError("LuaInterpreter".to_string())),
                 },
-                _ => Error::RuntimeError(e.get_cause()),
+                _ => Error::RuntimeError(make_lua_error_message!(e.get_cause())),
             }
         })?;
 
         let mut item = pool_get_ret.get_owned(()).map_err(|e| {
-            Error::RuntimeError(e.get_cause())
+            Error::RuntimeError(make_lua_error_message!(e.get_cause()))
         })?;
 
         let conn =item.get_value();
         let conn_ret = conn.execute_pair(cmd.as_ref(), &PairValueEnum::Array(real_args)).map_err(|e| {
-            Error::RuntimeError(e.get_cause())
+            Error::RuntimeError(make_lua_error_message!(e.get_cause()))
         });
 
         let conn_data = if conn_ret.is_err() {
