@@ -6,7 +6,7 @@ edition = "2021"
 resolver = "2"
 
 [dependencies]
-common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", branch="master"}
+common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", tag="v0.1.2"}
 mypip_types = {path = "../types"}
 mypip_loader = {path = "../loader"}
 mypip_interpreter = {path= "../interpreter"}
