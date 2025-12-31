@@ -1,13 +1,12 @@
 use std::cell::{RefCell};
 use std::collections::{HashMap, HashSet};
-use common_rs::c_core::func;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::*;
-use common_rs::logger::log_debug;
 use mypip_global::GLOBAL;
-use mypip_types::config::plan::{PlanChain, PlanChainArgs};
+use mypip_types::config::plan::PlanChain;
 use mypip_types::interface::GlobalLayout;
+use common_rs::logger::*;
 
 #[derive(Default)]
 struct QueryEntryCache<'a> {
@@ -54,7 +53,7 @@ fn create_query_bind_from_args_array(v: &mut Vec<PairValueEnum>, p : &'_ PlanCha
     Ok(())
 }
 
-fn create_query_bind_from_bind_array(v: &mut Vec<PairValueEnum>, p : &'_ PlanChain, m : &HashMap::<String, PairValueEnum>, use_idx : usize) -> Result<(), CommonError> {
+fn create_query_bind_from_bind_array(v: &mut Vec<PairValueEnum>, p : &'_ PlanChain, m : &HashMap<String, PairValueEnum>, use_idx : usize) -> Result<(), CommonError> {
     if let Some(binds) = p.bind.as_ref() {
         if binds.len() <= 0 {
             return Ok(());
@@ -109,7 +108,7 @@ fn create_query_bind_from_bind_array(v: &mut Vec<PairValueEnum>, p : &'_ PlanCha
     Ok(())
 }
 
-fn create_query_bind_array(p : &'_ PlanChain, m : &HashMap::<String, PairValueEnum>, use_bind_idx : usize) -> Result<Vec<PairValueEnum>, CommonError> {
+fn create_query_bind_array(p : &'_ PlanChain, m : &HashMap<String, PairValueEnum>, use_bind_idx : usize) -> Result<Vec<PairValueEnum>, CommonError> {
     let mut v = Vec::new();
     create_query_bind_from_args_array(&mut v, p).map_err(|e| {
         CommonError::extend(&CommonDefaultErrorKind::ParsingFail, "args array use failed", e)
@@ -178,17 +177,20 @@ fn run_one_query(item : &PlanChain, plan_name : &'_ str, bind_data : Vec<PairVal
 
     let ret = conn.execute_pair(item.query.as_str(), &PairValueEnum::Array(bind_data)).map_err(|e| {
         CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, format!("query run failed {}:{}",plan_name, item.id), e)
-    })?;
+    });
 
-    p_item.dispose();
-
-    Ok(ret)
+    if ret.is_err() {
+        p_item.dispose();
+        ret
+    } else {
+        p_item.restoration();
+        ret
+    }
 }
 
 impl<'a> QueryEntry<'a> {
     pub fn run(&self) -> Result<(), CommonError> {
         let mut data_map = HashMap::<String, PairValueEnum>::new();
-        let mut loop_query_cnt = 0;
         
         if self.chain.len() <= 0 {
             return Ok(());
@@ -211,12 +213,12 @@ impl<'a> QueryEntry<'a> {
 
         data_map.insert(self.chain[0].id.clone(), first_data);
 
-        log_debug!("{} - try running, name={} first success", func!(), self.chain[0].id.as_str());
+        log_debug!("try running, name={} first success", self.chain[0].id.as_str());
 
         for item in self.chain.iter().skip(1) {
-            log_debug!("{} - try running, query={}", func!(), item.query.as_str());
+            log_debug!("try running, query={}", item.query.as_str());
 
-            let ret : PairValueEnum = if let Some(bind_param) = &item.bind {
+            let ret : PairValueEnum = if let Some(_) = &item.bind {
                 let mut bind_ret = PairValueEnum::Null;
                 for bind_idx in 0..self.cache.borrow_mut().get_max_cnt() {
                     let bind_data = create_query_bind_array(item, &data_map, bind_idx).map_err(|e| {

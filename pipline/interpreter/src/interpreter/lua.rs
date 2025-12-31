@@ -160,6 +160,7 @@ impl LuaInterpreter {
             item.dispose();
             Err(conn_ret.err().unwrap())
         } else {
+            item.restoration();
             Ok(conn_ret.unwrap())
         }?;
 

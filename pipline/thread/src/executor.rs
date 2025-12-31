@@ -33,9 +33,10 @@ pub struct PlanThreadSignalMap {
 
 impl PlanThreadExecutorCancel {
     pub fn cancel(&mut self) {
-        self.exec.stop_flag.store(true, Ordering::Release);
-        let take = self.join_handle.take();
-        take.unwrap().join().unwrap();
+        if !self.exec.stop_flag.swap(true, Ordering::SeqCst) {
+            let take = self.join_handle.take();
+            take.expect("plan thread executor cancel take is broken").join().expect("join is broken");
+        }
     }
 }
 

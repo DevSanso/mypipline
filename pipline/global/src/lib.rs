@@ -201,7 +201,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         }
 
         let config_dir = std::path::Path::new(&base_dir).join("config").to_string_lossy().to_string();
-        let log_dir = std::path::Path::new(&base_dir).join("log").join(format!("{}.log", identifier.as_str())).to_string_lossy().to_string();
+        let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier.as_str()).to_string_lossy().to_string();
         let script_dir = std::path::Path::new(&base_dir).join("scripts").to_string_lossy().to_string();
         
         let loader_config_dir = config_dir.clone();
@@ -222,7 +222,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
             } else {
                 Some(log_dir.as_str())
             },
-            log_file_size_mb: app_config.log_max_size_mb,
+            log_file_size : (app_config.log_max_size_mb as usize * 1024 * 1024),
         })?;
 
         self.once_store.get_or_init(move || {

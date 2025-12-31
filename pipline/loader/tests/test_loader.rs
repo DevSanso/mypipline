@@ -11,7 +11,7 @@ fn load_conn_toml_file_loader() -> Result<(), CommonError> {
     common_rs::init::init_common(InitConfig {
         log_level: "debug",
         log_file: None,
-        log_file_size_mb : 1
+        log_file_size : 1 * 1024 * 1024,
     })?;
 
     let conf_loader = toml_file_loader
