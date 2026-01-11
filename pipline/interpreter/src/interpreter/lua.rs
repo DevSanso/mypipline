@@ -6,9 +6,13 @@ use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::PairValueEnum;
 use mlua::{Error, Table, UserData, Value};
 use mypip_types::interface::GlobalLayout;
+use crate::utils;
 
 const INJECT_GLOBAL_NAME : &'static str = "__inject_global_ptr";
-const CONN_GET_FN_NAME : &'static str = "mypip_data_conn_get";
+const PAIR_CONN_EXEC_FN_NAME: &'static str = "mypip_pair_conn_exec";
+
+const HTTP_EXEC_FN_NAME: &'static str = "mypip_http_exec";
+
 macro_rules! make_lua_error_message {
     ($e:expr) => {
         {
@@ -186,8 +190,40 @@ impl LuaInterpreter {
         
         Ok(ret)
     }
+    fn lua_exec_http_wrapper(vm : &Lua, (method, url, header, body) : (String, String, Table, Option<String>)) -> LuaResult<mlua::Value> {
+        let mut header_list = Vec::with_capacity(3);
+        for h in header.sequence_values::<mlua::Value>() {
+            if let Ok(mlua::Value::String(s)) = h {
+                header_list.push(s.to_string_lossy().to_string());
+            } else if let Err(e) = h {
+                return Err(Error::BadArgument {
+                    to: None,
+                    pos: 1,
+                    name: None,
+                    cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
+                });
+            } else {
+                return Err(Error::BadArgument {
+                    to: None,
+                    pos: 1,
+                    name: None,
+                    cause: Arc::new(Error::RuntimeError(make_lua_error_message!("not support type"))),
+                });
+            }
+        }
+        let body_str : String = body.unwrap_or_else(|| String::from(""));
+        let resp = utils::exec_http_conn(url.as_str(),
+                                         method.as_str(), header_list.as_slice(), body_str).map_err(|e| {
+            Error::RuntimeError(make_lua_error_message!(e))
+        })?;
 
-    fn lua_exec_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
+        let ret = vm.create_string(resp.as_slice()).map_err(|e| {
+            Error::RuntimeError(make_lua_error_message!(e))
+        })?;
+
+        Ok(mlua::Value::String(ret))
+    }
+    fn lua_exec_pair_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
         let inject: mlua::AnyUserData = vm.globals().get(INJECT_GLOBAL_NAME)?;
 
         let global = inject.borrow::<LuaInterpreterGlobalInject>()?
@@ -220,13 +256,19 @@ impl LuaInterpreter {
         }).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper global init failed")
         })?;
-        let inject_fn = lua_vm.create_function(Self::lua_exec_conn_wrapper).map_err(|_| {
+        let inject_pair_fn = lua_vm.create_function(Self::lua_exec_pair_conn_wrapper).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper init failed")
+        })?;
+        let inject_http_fn = lua_vm.create_function(Self::lua_exec_http_wrapper).map_err(|_| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_http_wrapper init failed")
         })?;
         lua_vm.globals().set(INJECT_GLOBAL_NAME, inject_global).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get global set failed")
         })?;
-        lua_vm.globals().set(CONN_GET_FN_NAME, inject_fn).map_err(|_| {
+        lua_vm.globals().set(PAIR_CONN_EXEC_FN_NAME, inject_pair_fn).map_err(|_| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
+        })?;
+        lua_vm.globals().set(HTTP_EXEC_FN_NAME, inject_http_fn).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
 
