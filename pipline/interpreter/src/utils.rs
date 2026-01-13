@@ -116,10 +116,19 @@ pub(crate) fn exec_http_conn(url : &'_ str, method : &'_ str, header : &'_ [Stri
             easy.get(true).map_err(|e| {
                 CommonError::new(&CommonDefaultErrorKind::Etc, format!("http method get init failed : {}", e))
             })?;
-            
-            easy.perform().map_err(|e| {
+
+            let mut transfer = easy.transfer();
+
+            transfer.write_function(|buf| {
+                response_buffer.extend_from_slice(buf);
+                Ok(buf.len())
+            }).map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, format!("http method get write init failed : {}", e))
+            })?;
+
+            transfer.perform().map_err(|e| {
                 CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, format!("http method get response failed : {}", e))
-            })?;;
+            })?;
         },
         _ => {
             CommonError::new(&CommonDefaultErrorKind::Etc, format!("not support http method {}", method)).to_result()?;
