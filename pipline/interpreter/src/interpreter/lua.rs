@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::ffi::c_double;
-use std::sync::RwLock;
 use std::sync::Arc;
 use mlua::prelude::{Lua, LuaResult};
 
@@ -9,22 +6,12 @@ use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::PairValueEnum;
 use mlua::{Error, Table, UserData, Value};
 use mypip_types::interface::GlobalLayout;
+use crate::utils;
 
 const INJECT_GLOBAL_NAME : &'static str = "__inject_global_ptr";
-const CONN_GET_FN_NAME : &'static str = "mypip_data_conn_get";
+const PAIR_CONN_EXEC_FN_NAME: &'static str = "mypip_pair_conn_exec";
 
-struct LuaInterpreterGlobalInject {
-    global_ref : &'static dyn GlobalLayout,
-}
-
-impl UserData for LuaInterpreterGlobalInject {
-
-}
-
-pub struct LuaInterpreter {
-    lua : Lua,
-    global_ref : &'static dyn GlobalLayout,
-}
+const HTTP_EXEC_FN_NAME: &'static str = "mypip_http_exec";
 
 macro_rules! make_lua_error_message {
     ($e:expr) => {
@@ -34,6 +21,99 @@ macro_rules! make_lua_error_message {
         }
 
     };
+}
+struct LuaInterpreterGlobalInject {
+    global_ref : &'static dyn GlobalLayout,
+}
+
+impl UserData for LuaInterpreterGlobalInject {
+
+}
+
+
+struct LuaScriptConverter<'a> {
+    vm : &'a Lua
+}
+
+impl<'a> crate::utils::ConvertInterpreterParam<mlua::Value> for LuaScriptConverter<'a> {
+    fn convert(&self, param: &'_ PairValueEnum) -> Result<Value, CommonError> {
+        let d = match param {
+            PairValueEnum::Double(d) => {mlua::Value::Number(*d)}
+            PairValueEnum::Int(i) => {mlua::Value::Number(*i as f64)}
+            PairValueEnum::BigInt(bi) => {mlua::Value::Number(*bi as f64)}
+            PairValueEnum::String(s) => {
+                let ls = self.vm.create_string(s.as_bytes()).map_err(|e| {
+                    CommonError::new(&CommonDefaultErrorKind::Etc, format!("convert failed :{}", e))
+                })?;
+                mlua::Value::String(ls)
+            }
+            PairValueEnum::Bin(bin) => {
+                let ls = self.vm.create_string(bin.as_slice()).map_err(|e| {
+                    CommonError::new(&CommonDefaultErrorKind::Etc, format!("convert failed :{}", e))
+                })?;
+                mlua::Value::String(ls)
+            }
+            PairValueEnum::Bool(b) => {mlua::Value::Boolean(*b)}
+            PairValueEnum::Float(f) => {mlua::Value::Number(*f as f64)}
+            PairValueEnum::Array(a) => {
+                let table = self.vm.create_table().map_err(|e| {
+                    CommonError::new(&CommonDefaultErrorKind::Etc, format!("convert failed :{}", e))
+                })?;
+                for e in a {
+                    table.push(self.convert(e).map_err(|e| {
+                        CommonError::extend(&CommonDefaultErrorKind::Etc, "nested failed", e)
+                    })?).map_err(|e| {
+                        CommonError::new(&CommonDefaultErrorKind::Etc, format!("table push failed :{}", e))
+                    })?;
+                }
+                mlua::Value::Table(table)
+            }
+            PairValueEnum::Map(m) => {
+                let table = self.vm.create_table().map_err(|e| {
+                    CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, format!("create table data failed :{}", e))
+                })?;
+                for (k, v) in m {
+                    let conv = self.convert(v).map_err(|e| {
+                        CommonError::extend(&CommonDefaultErrorKind::Etc, "nested failed", e)
+                    })?;
+                    table.set(k.clone(), conv).map_err(|e| {
+                        CommonError::new(&CommonDefaultErrorKind::Etc, format!("table push failed :{}", e))
+                    })?;
+                }
+                mlua::Value::Table(table)
+            }
+            PairValueEnum::Null => {mlua::Value::NULL}
+        };
+        Ok(d)
+    }
+}
+
+struct LuaPairConverter;
+
+impl crate::utils::ConvertPairValue<Table> for LuaPairConverter {
+    fn convert(&self, param: &'_ Table) -> Result<PairValueEnum, CommonError> {
+        let mut real_args = Vec::with_capacity(5);
+        for pair in param.sequence_values::<mlua::Value>() {
+            let data = match pair.as_ref().map_err(|e|  {
+                CommonError::new(&CommonDefaultErrorKind::Etc, "convert lua -> pair match failed")
+            })? {
+                Value::Nil => PairValueEnum::Null,
+                Value::Boolean(b) => PairValueEnum::Bool(*b),
+                Value::Integer(i) => PairValueEnum::BigInt(*i),
+                Value::Number(n) => PairValueEnum::Double(*n),
+                Value::String(s) => PairValueEnum::String(s.to_string_lossy().to_string()),
+                _ => return CommonError::new(&CommonDefaultErrorKind::Etc, "convert lua -> pair failed").to_result()
+            };
+            real_args.push(data);
+        }
+
+        Ok(PairValueEnum::Array(real_args))
+    }
+}
+
+pub struct LuaInterpreter {
+    lua : Lua,
+    global_ref : &'static dyn GlobalLayout,
 }
 
 impl LuaInterpreter {
@@ -110,77 +190,85 @@ impl LuaInterpreter {
         
         Ok(ret)
     }
+    fn lua_exec_http_wrapper(vm : &Lua, (method, url, header, body) : (String, String, Table, Option<String>)) -> LuaResult<mlua::Value> {
+        let mut header_list = Vec::with_capacity(3);
+        for h in header.sequence_values::<mlua::Value>() {
+            if let Ok(mlua::Value::String(s)) = h {
+                header_list.push(s.to_string_lossy().to_string());
+            } else if let Err(e) = h {
+                return Err(Error::BadArgument {
+                    to: None,
+                    pos: 1,
+                    name: None,
+                    cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
+                });
+            } else {
+                return Err(Error::BadArgument {
+                    to: None,
+                    pos: 1,
+                    name: None,
+                    cause: Arc::new(Error::RuntimeError(make_lua_error_message!("not support type"))),
+                });
+            }
+        }
+        let body_str : String = body.unwrap_or_else(|| String::from(""));
+        let resp = utils::exec_http_conn(url.as_str(),
+                                         method.as_str(), header_list.as_slice(), body_str).map_err(|e| {
+            Error::RuntimeError(make_lua_error_message!(e))
+        })?;
 
-    fn lua_exec_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
+        let ret = vm.create_string(resp.as_slice()).map_err(|e| {
+            Error::RuntimeError(make_lua_error_message!(e))
+        })?;
+
+        Ok(mlua::Value::String(ret))
+    }
+    fn lua_exec_pair_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
         let inject: mlua::AnyUserData = vm.globals().get(INJECT_GLOBAL_NAME)?;
 
         let global = inject.borrow::<LuaInterpreterGlobalInject>()?
             .global_ref;
 
-        let mut real_args = Vec::with_capacity(3);
+        let script_convert = LuaScriptConverter {vm};
+        let pair_convert = LuaPairConverter;
 
-        for pair in args.sequence_values::<mlua::Value>() {
-            let data = match pair.as_ref().map_err(|e|  {
-                Error::RuntimeError(make_lua_error_message!(e))
-            })? {
-                Value::Nil => PairValueEnum::Null,
-                Value::Boolean(b) => PairValueEnum::Bool(*b),
-                Value::Integer(i) => PairValueEnum::BigInt(*i),
-                Value::Number(n) => PairValueEnum::Double(*n),
-                Value::String(s) => PairValueEnum::String(s.to_string_lossy().to_string()),
-                _ => return Err(Error::RuntimeError(make_lua_error_message!(format!("not support {:?} type", pair?))))
-            };
-            real_args.push(data);
-        }
+        let data = crate::utils::exec_pair_conn(global,
+                                                conn_name.as_str(),
+                                                cmd.as_str(),
+                                                args, script_convert, pair_convert);
 
-        let pool_get_ret = unsafe {
-            global.get_exec_pool(conn_name.into())
-        }.map_err(|e| {
-            match e.func_ref()[0].3.name() {
-                "CommonDefaultErrorKind::NoData" => Error::BadArgument {
-                    to: Some("get_exec_pool".to_string()),
-                    pos: 0,
-                    name: Some("conn_name".to_string()),
-                    cause: Arc::new(Error::RuntimeError("LuaInterpreter".to_string())),
-                },
-                _ => Error::RuntimeError(make_lua_error_message!(e.get_cause())),
-            }
-        })?;
-
-        let mut item = pool_get_ret.get_owned(()).map_err(|e| {
-            Error::RuntimeError(make_lua_error_message!(e.get_cause()))
-        })?;
-
-        let conn =item.get_value();
-        let conn_ret = conn.execute_pair(cmd.as_ref(), &PairValueEnum::Array(real_args)).map_err(|e| {
-            Error::RuntimeError(make_lua_error_message!(e.get_cause()))
-        });
-
-        let conn_data = if conn_ret.is_err() {
-            item.dispose();
-            Err(conn_ret.err().unwrap())
+        if data.is_err() {
+            Err(Error::BadArgument {
+                to: None,
+                pos: 0,
+                name: None,
+                cause: Arc::new(Error::RuntimeError(make_lua_error_message!(data.err().unwrap()))),
+            })
         } else {
-            item.restoration();
-            Ok(conn_ret.unwrap())
-        }?;
-
-        Self::convert_pair_to_lua_type(vm, conn_data)
+            Ok(data.unwrap())
+        }
     }
 
     pub fn new(global : &'static dyn GlobalLayout) -> Result<Self,CommonError> {
         let lua_vm = Lua::new();
         let inject_global = lua_vm.create_userdata(LuaInterpreterGlobalInject {
             global_ref : global
-        }).map_err(|e| {
+        }).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper global init failed")
         })?;
-        let inject_fn = lua_vm.create_function(Self::lua_exec_conn_wrapper).map_err(|e| {
+        let inject_pair_fn = lua_vm.create_function(Self::lua_exec_pair_conn_wrapper).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper init failed")
         })?;
-        lua_vm.globals().set(INJECT_GLOBAL_NAME, inject_global).map_err(|e| {
+        let inject_http_fn = lua_vm.create_function(Self::lua_exec_http_wrapper).map_err(|_| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_http_wrapper init failed")
+        })?;
+        lua_vm.globals().set(INJECT_GLOBAL_NAME, inject_global).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get global set failed")
         })?;
-        lua_vm.globals().set(CONN_GET_FN_NAME, inject_fn).map_err(|e| {
+        lua_vm.globals().set(PAIR_CONN_EXEC_FN_NAME, inject_pair_fn).map_err(|_| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
+        })?;
+        lua_vm.globals().set(HTTP_EXEC_FN_NAME, inject_http_fn).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
 
@@ -193,7 +281,7 @@ impl LuaInterpreter {
 
 impl crate::Interpreter for LuaInterpreter {
     fn gc(&self) -> Result<(), CommonError> {
-        self.lua.gc_collect().map_err(|e| {
+        self.lua.gc_collect().map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "gc call failed")
         })
     }
