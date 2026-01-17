@@ -1,5 +1,13 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OdbcConnectionInfo {
+    pub driver : String,
+    pub current_time_query : String,
+    pub current_time_col_name : String
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionInfo {
     #[serde(alias = "max_conn")]
@@ -16,7 +24,10 @@ pub struct ConnectionInfo {
     #[serde(alias = "password")]
     pub conn_passwd : String,
     #[serde(alias = "timeout")]
-    pub conn_timeout : u32
+    pub conn_timeout : u32,
+
+    #[serde(alias = "odbc")]
+    pub odbc : Option<OdbcConnectionInfo>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

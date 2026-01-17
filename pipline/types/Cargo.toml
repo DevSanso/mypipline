@@ -7,4 +7,4 @@ resolver = "2"
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
-common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", tag="v0.1.2"}
+common_rs = {git = "https://github.com/DevSanso/common_rs",  tag="v0.1.3"}

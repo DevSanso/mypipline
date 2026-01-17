@@ -15,6 +15,7 @@ use common_rs::exec::interfaces::pair::*;
 use common_rs::exec::pg::create_pg_pair_conn_pool;
 use common_rs::exec::redis::create_redis_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
+use common_rs::exec::odbc::create_odbc_pair_conn_pool;
 use common_rs::init::InitConfig;
 use mypip_loader::toml_file_loader;
 use mypip_types::config::app::AppConfig;
@@ -50,6 +51,7 @@ impl GlobalStore {
                     user: conn_info.conn_user,
                     password: conn_info.conn_passwd,
                     timeout_sec: conn_info.conn_timeout,
+                    extend : None
                 }, conn_info.max_size)),
                 constant::CONN_TYPE_SCYLLA => Ok(create_scylla_pair_conn_pool(conn_info.conn_name.clone(), vec![PairExecutorInfo {
                     addr: conn_info.conn_addr,
@@ -57,6 +59,7 @@ impl GlobalStore {
                     user: conn_info.conn_user,
                     password: conn_info.conn_passwd,
                     timeout_sec: conn_info.conn_timeout,
+                    extend : None
                 }], conn_info.max_size)),
                 constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
                     addr: conn_info.conn_addr,
@@ -64,6 +67,7 @@ impl GlobalStore {
                     user: conn_info.conn_user,
                     password: conn_info.conn_passwd,
                     timeout_sec: conn_info.conn_timeout,
+                    extend : None
                 }, conn_info.max_size)),
                 constant::CONN_TYPE_REDIS => Ok(create_redis_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
                     addr: conn_info.conn_addr,
@@ -71,6 +75,26 @@ impl GlobalStore {
                     user: conn_info.conn_user,
                     password: conn_info.conn_passwd,
                     timeout_sec: conn_info.conn_timeout,
+                    extend : None
+                }, conn_info.max_size)),
+                constant::CONN_TYPE_ODBC => Ok(create_odbc_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
+                    addr: String::from(""),
+                    name: String::from(""),
+                    user: String::from(""),
+                    password: String::from(""),
+                    timeout_sec: conn_info.conn_timeout,
+                    extend : if let Some(odbc_info) = conn_info.odbc {
+                        let  addr : Vec<&'_ str> = conn_info.conn_addr.split(":").collect();
+                        if addr.len() < 2 {
+                            return CommonError::new(&CommonDefaultErrorKind::NoData, "ODBC addr split count <2 ").to_result();
+                        }
+
+                        let data_source = format!("Driver={{{}}};Server={};Port={};Database={};Uid={};Pwd={}",
+                            odbc_info.driver, addr[0], addr[1], conn_info.conn_name, conn_info.conn_user, conn_info.conn_passwd);
+                        Some(vec![data_source, odbc_info.current_time_query, odbc_info.current_time_col_name])
+                    } else {
+                        return CommonError::new(&CommonDefaultErrorKind::NoData, "ODBC INFO not exists").to_result();
+                    }
                 }, conn_info.max_size)),
                 _ => Err(CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", conn_info.conn_type)))
             }?;

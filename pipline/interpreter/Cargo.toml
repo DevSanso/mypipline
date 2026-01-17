@@ -8,5 +8,5 @@ resolver = "2"
 [dependencies]
 mlua = { version = "0.11", features = ["lua54", "vendored"] }
 curl = "0.4.49"
-common_rs = {git = "https://github.com/DevSanso/common_rs" , package = "common_rs", tag="v0.1.2"}
+common_rs = {git = "https://github.com/DevSanso/common_rs", tag="v0.1.3"}
 mypip_types = {path = "../types"}
