@@ -23,7 +23,7 @@ pub trait Interpreter {
     fn run(&self, name : &'_ str) -> Result<(),CommonError>;
 }
 
-pub trait GlobalLayout {
+pub trait GlobalLayout : Sync {
     fn get_exec_pool(&self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError >;
     fn get_plan(&self) -> Result<HashMap<String, Plan>, CommonError>;
     fn get_interpreter_pool(&self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError>;
