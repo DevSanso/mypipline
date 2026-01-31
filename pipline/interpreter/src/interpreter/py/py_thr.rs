@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock};
 use common_rs::c_err::CommonError;
@@ -8,7 +8,7 @@ use pyo3::ffi::c_str;
 use pyo3::prelude::{PyBoolMethods, PyDictMethods};
 use pyo3::{pyfunction, Bound, CastError, Py, PyAny, PyErr, PyResult, Python};
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::types::{PyBool, PyDict, PyString};
+use pyo3::types::{PyBool, PyCode, PyDict, PyString};
 use mypip_types::interface::GlobalLayout;
 
 static PY_INIT_COUNT: AtomicUsize = AtomicUsize::new(0);
@@ -17,9 +17,9 @@ static PY_INIT_MUTEX : Mutex<()> = Mutex::new(());
 static GLOBAL_REFER : OnceLock<&'static dyn GlobalLayout> = OnceLock::new();
 
 #[pyfunction]
-fn py_exec_pair_conn_wrapper(py: Python, conn_name : String, cmd : String, args : Py<PyAny>) -> PyResult<Py<PyAny>> {
-    let script_convert = super::utils::PyScriptConverter;
-    let pair_convert = super::utils::PyPariConverter;
+fn py_exec_pair_conn_wrapper(py: Python, conn_name : String, cmd : String, args : Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    let script_convert = super::utils::PyScriptConverter {py};
+    let pair_convert = super::utils::PyPariConverter{py};
 
     let data =  crate::utils::exec_pair_conn(*GLOBAL_REFER.get().expect("global refer is broken"),
                                              conn_name.as_str(),
@@ -28,7 +28,7 @@ fn py_exec_pair_conn_wrapper(py: Python, conn_name : String, cmd : String, args 
         PyErr::new::<PyRuntimeError, _>(format!("{:?}", e))
     })?;
 
-    Ok(data)
+    Ok(data.unbind())
 }
 pub struct PyThreadInterpreter {
     global_ref : &'static dyn GlobalLayout
@@ -42,10 +42,14 @@ impl PyThreadInterpreter {
             let lock = PY_INIT_MUTEX.lock().unwrap();
             Python::attach(|py| {
                 py.run(c_str!(r#"
-                global te_map = {}
-                global te = ThreadPoolExecutor(max_workers=100)
+                global te_map;
+                global te
+
+                te_map = {}
+                te = ThreadPoolExecutor(max_workers=100)
+
                 def run_eval(code):
-                    return eval(code)
+                    exec(code)
             "#), None, None).unwrap();
             });
             drop(lock);
@@ -70,7 +74,8 @@ impl PyThreadInterpreter {
         let all_script = format!(
             r#"import uuid
                 random_uuid = uuid.uuid4()
-                future = te.submit(run_eval, """{}""")
+                compile_code = compile("""{}""",'<string>','single')
+                future = te.submit(run_eval, compile_code)
                 te_map[random_uuid] = future"#, script
         );
 
