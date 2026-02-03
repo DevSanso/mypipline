@@ -5,7 +5,7 @@ use std::sync::{LazyLock, Mutex, OnceLock};
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use pyo3::ffi::c_str;
-use pyo3::prelude::{PyBoolMethods, PyDictMethods};
+use pyo3::prelude::{PyAnyMethods, PyBoolMethods, PyDictMethods};
 use pyo3::{pyfunction, Bound, CastError, Py, PyAny, PyErr, PyResult, Python};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::types::{PyBool, PyCode, PyDict, PyString};
@@ -18,8 +18,8 @@ static GLOBAL_REFER : OnceLock<&'static dyn GlobalLayout> = OnceLock::new();
 
 #[pyfunction]
 fn py_exec_pair_conn_wrapper(py: Python, conn_name : String, cmd : String, args : Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    let script_convert = super::utils::PyScriptConverter {py};
-    let pair_convert = super::utils::PyPariConverter{py};
+    let script_convert = super::convert::PyScriptConverter {py};
+    let pair_convert = super::convert::PyPariConverter{py};
 
     let data =  crate::utils::exec_pair_conn(*GLOBAL_REFER.get().expect("global refer is broken"),
                                              conn_name.as_str(),
@@ -30,32 +30,54 @@ fn py_exec_pair_conn_wrapper(py: Python, conn_name : String, cmd : String, args 
 
     Ok(data.unbind())
 }
-pub struct PyThreadInterpreter {
+pub struct PyInterpreter {
     global_ref : &'static dyn GlobalLayout
 }
 
-impl PyThreadInterpreter {
-    pub fn new(global : &'static dyn GlobalLayout) -> PyThreadInterpreter {
+impl PyInterpreter {
+    pub fn new(global : &'static dyn GlobalLayout) -> Result<Self, CommonError> {
         if PY_INIT_COUNT.fetch_add(1, Ordering::SeqCst) == 0 {
             GLOBAL_REFER.get_or_init(|| global);
 
-            let lock = PY_INIT_MUTEX.lock().unwrap();
+            let lock = PY_INIT_MUTEX.lock().expect("Python INIT Mutex lock is broken");
+            Python::initialize();
             Python::attach(|py| {
-                py.run(c_str!(r#"
-                global te_map;
-                global te
+                let run_ret = py.run(c_str!(r#"
+from concurrent.futures import ThreadPoolExecutor
+import uuid
+import traceback
+te_map = {}
+te = ThreadPoolExecutor(max_workers=100)
 
-                te_map = {}
-                te = ThreadPoolExecutor(max_workers=100)
+def __internal_run_eval(code):
+    private_run_eval = lambda x : exec(x)
+    temp = uuid.uuid4()
+    random_uuid = str(temp)
+    compile_code = compile(code,'<string>','exec')
+    future = te.submit(private_run_eval, compile_code)
+    te_map[random_uuid] = future
+    return random_uuid
 
-                def run_eval(code):
-                    exec(code)
-            "#), None, None).unwrap();
+def __internal_await_done(uuid):
+    return te_map[uuid].done()
+
+def __internal_get_error_code(uuid):
+    error_code = ""
+    try:
+        te_map[uuid].result()
+    except Exception as e:
+        error_code = traceback.format_exc()
+    return error_code"#), None, None);
+
+                if run_ret.is_err() {
+                    let ce = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, run_ret.err().unwrap().to_string());
+                    panic!("python init run code panic: {}", ce.to_string());
+                }
             });
             drop(lock);
         }
 
-        PyThreadInterpreter { global_ref: global }
+        Ok(PyInterpreter { global_ref: global })
     }
 
     fn get_script<S : AsRef<str>>(&self, plan_name : S) -> Result<String,CommonError> {
@@ -66,18 +88,10 @@ impl PyThreadInterpreter {
         Ok(ret)
     }
 
-
-
     fn run_script(&self, script : &'_ str) -> Result<String, CommonError> {
         let mut attach_ret :  Result<(), CommonError> = Ok(());
         let mut uuid = String::from("");
-        let all_script = format!(
-            r#"import uuid
-                random_uuid = uuid.uuid4()
-                compile_code = compile("""{}""",'<string>','single')
-                future = te.submit(run_eval, compile_code)
-                te_map[random_uuid] = future"#, script
-        );
+        let all_script = format!(r#"__internal_run_eval("""{}""")"#, script);
 
         let cstr = CString::new(all_script).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
@@ -86,33 +100,23 @@ impl PyThreadInterpreter {
         Python::attach(|py| {
             let locals = PyDict::new(py);
 
-            attach_ret = py.run(cstr.as_c_str(), None, Some(&locals)).map_err(|e| {
+            let eval_ret = py.eval(cstr.as_c_str(), None, None).map_err(|e| {
                 CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
             });
 
-
-            if attach_ret.is_err() {
+            if eval_ret.is_err() {
+                attach_ret = eval_ret.err().unwrap().to_result();
                 return
             }
 
-            let ret = locals.get_item("random_uuid");
-
-            if ret.is_err() {
-                attach_ret = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, ret.err().unwrap().to_string()).to_result();
+            let var = eval_ret.unwrap();
+            let uuid_ret : Result<&Bound<PyString>,  CastError<'_, '_>> = var.cast();
+            if uuid_ret.is_err() {
+                attach_ret = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, uuid_ret.err().unwrap().to_string()).to_result();
                 return
             }
-
-            if let Some(var) = ret.unwrap() {
-                let uuid_ret : Result<&Bound<PyString>,  CastError<'_, '_>> = var.cast();
-                if uuid_ret.is_err() {
-                    attach_ret = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, uuid_ret.err().unwrap().to_string()).to_result();
-                    return
-                }
-
-                uuid = uuid_ret.unwrap().to_string();
-            } else {
-                attach_ret = CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, "var is not string type").to_result();
-            }
+            let cast = uuid_ret.unwrap();
+            uuid = cast.to_string();
         });
 
         attach_ret?;
@@ -140,9 +144,44 @@ impl PyThreadInterpreter {
         attach_ret
     }
 
+    fn is_thread_execute_error(&self, uuid : String) -> Result<(), CommonError> {
+        let mut attach_ret :  Result<(), CommonError> = Ok(());
+        let all_script = format!(r#"__internal_get_error_code('{}')"#, uuid);
+
+        let cstr = CString::new(all_script).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+
+        Python::attach(|py| {
+            let eval_ret = py.eval(cstr.as_c_str(), None, None).map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            });
+
+            if eval_ret.is_err() {
+                attach_ret = Err(eval_ret.err().unwrap());
+                return
+            }
+            let eval_data = eval_ret.unwrap();
+            let is_done_ret : Result<&Bound<PyString>,  CastError<'_, '_>> = eval_data.cast();
+
+            if is_done_ret.is_err() {
+                attach_ret = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, is_done_ret.err().unwrap().to_string()).to_result();
+                return
+            }
+
+            let msg = is_done_ret.unwrap().to_string();
+
+            if msg != "" {
+                attach_ret = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, msg).to_result();
+            }
+        });
+
+        attach_ret
+    }
+
     fn await_done_script(&self, uuid : String) -> Result<(), CommonError> {
         let mut attach_ret :  Result<(), CommonError> = Ok(());
-        let all_script = format!(r#"te_map['{}'].done()"#, uuid);
+        let all_script = format!(r#"__internal_await_done('{}')"#, uuid);
 
         let cstr = CString::new(all_script).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
@@ -180,15 +219,15 @@ impl PyThreadInterpreter {
     }
 }
 
-impl Drop for PyThreadInterpreter {
+impl Drop for PyInterpreter {
     fn drop(&mut self) {
         if PY_INIT_COUNT.fetch_sub(1, Ordering::SeqCst) == 1 {
             let lock = PY_INIT_MUTEX.lock().unwrap();
             Python::attach(|py| {
                 py.run(c_str!(r#"
-                te.close()
-                te = None
-                te_map.clear()
+te.close()
+te = None
+te_map.clear()
             "#), None, None).unwrap();
             });
             drop(lock);
@@ -196,9 +235,30 @@ impl Drop for PyThreadInterpreter {
     }
 }
 
-impl crate::Interpreter for PyThreadInterpreter {
+impl crate::Interpreter for PyInterpreter {
     fn gc(&self) -> Result<(), CommonError> {
-        todo!()
+        let mut attach_ret :  Result<(), CommonError> = Ok(());
+
+        Python::attach(|py| {
+            let gc = py.import("gc").map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            });
+
+            if gc.is_err() {
+                attach_ret = Err(gc.unwrap_err());
+                return;
+            }
+
+            let method_ret = gc.unwrap().call_method0("collect").map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            });
+
+            if method_ret.is_err() {
+                attach_ret = Err(method_ret.unwrap_err());
+            }
+        });
+
+        attach_ret
     }
 
     fn run(&self, name: &'_ str) -> Result<(), CommonError> {
@@ -211,12 +271,17 @@ impl crate::Interpreter for PyThreadInterpreter {
         let await_ret = self.await_done_script(key.clone());
 
         if await_ret.is_err() {
-            self.force_stop_thread_execute(key).map_err(|e| {
+            self.force_stop_thread_execute(key.clone()).map_err(|e| {
                 CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "run_script force stop failed", e)
             })?;
 
             await_ret?;
         }
+
+        self.is_thread_execute_error(key.clone()).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "python error", e)
+        })?;
+
         Ok(())
     }
 }

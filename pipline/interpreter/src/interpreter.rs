@@ -1,2 +1,2 @@
 pub mod lua;
-mod py;
+pub mod py;

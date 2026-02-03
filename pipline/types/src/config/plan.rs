@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
+const fn plan_enable_default() -> bool {
+    true
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanChainBindParam {
     pub idx : usize,
@@ -38,6 +41,8 @@ pub struct Plan {
     pub interval : PlanInterval,
     #[serde(alias = "type")]
     pub type_name : String,
+    #[serde(default = "plan_enable_default")]
+    pub enable : bool,
     
     pub script    : Option<PlanScript>,
     pub chain     : Option<Vec<PlanChain>>

@@ -63,8 +63,6 @@ fn plan_thread_sleep(interval : &PlanInterval) -> Result<(), CommonError> {
     let interval_ms = (interval.second as u128) * 1000;
     let epel = interval_ms - (millie_ok % interval_ms);
 
-    common_rs::logger::log_debug!("plan_thread_sleep sleep {} ms", epel);
-
     if epel <= 0 {
         std::thread::sleep(Duration::from_millis(interval_ms as u64 + 10));
     } else {
@@ -95,7 +93,7 @@ pub fn plan_thread_fn(entry : PlanThreadEntry) {
             log_error!("{}", sleep.err().unwrap());
             break;
         }
-
+        log_debug!("{:?} - entry start {}", std::thread::current().id(), entry.name);
         if  let Err(e) = entry.run() {
             log_error!("{}", e.to_string());
             break;

@@ -14,11 +14,12 @@ impl ScriptEntry {
         Self { plan_name, plan_script }
     }
     pub fn run(&self) -> Result<(), CommonError> {
-        if self.plan_script.lang != "lua" {
+        const SUPPORT : [&'static str;2] = ["lua","python"];
+        if !SUPPORT.contains(&self.plan_script.lang.as_str()) {
             return CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("{} - only support lua", self.plan_name)).to_result();
         }
 
-        let p = GLOBAL.get_interpreter_pool("lua".into()).map_err(|e| {
+        let p = GLOBAL.get_interpreter_pool(self.plan_script.lang.as_str().into()).map_err(|e| {
             CommonError::extend(&CommonDefaultErrorKind::Etc, format!("{} - failed get pool", self.plan_name), e)
         })?;
         

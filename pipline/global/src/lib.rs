@@ -24,6 +24,7 @@ use mypip_types::typealias::InterpreterPool;
 use mypip_types::config::conn::ConnectionInfos;
 
 use mypip_types::config::plan::{Plan, PlanRoot};
+use crate::etc::InterpreterType::{LUA, PYTHON};
 
 #[derive(Default)]
 struct GlobalStore {
@@ -224,9 +225,9 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
         }
 
-        let config_dir = std::path::Path::new(&base_dir).join("config").to_string_lossy().to_string();
+        let config_dir = std::path::Path::new(&base_dir).join("config").join(identifier.as_str()).to_string_lossy().to_string();
         let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier.as_str()).to_string_lossy().to_string();
-        let script_dir = std::path::Path::new(&base_dir).join("scripts").to_string_lossy().to_string();
+        let script_dir = std::path::Path::new(&base_dir).join("scripts").join(identifier.as_str()).to_string_lossy().to_string();
         
         let loader_config_dir = config_dir.clone();
         let loader_script_dir = script_dir.clone();
@@ -271,7 +272,8 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         };
 
         store.reset(loader.as_ref())?;
-        store.exec_interpreter_map.insert("lua", crate::etc::create_lua_interpreter_pool(100));
+        store.exec_interpreter_map.insert("lua", crate::etc::create_interpreter_pool(LUA,100));
+        store.exec_interpreter_map.insert("python", crate::etc::create_interpreter_pool(PYTHON, 100));
 
         *writer = store;
 
