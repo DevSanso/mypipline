@@ -37,7 +37,7 @@ impl<'a> crate::utils::ConvertPairValue<Bound<'a, PyAny>> for PyPariConverter<'a
             })?;
 
             let data = match type_name.as_str() {
-                "string" => {
+                "str" => {
                     let s : String = ele.extract::<String>().map_err(|e| {
                         CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
                     })?;
@@ -124,6 +124,6 @@ impl<'a> crate::utils::ConvertInterpreterParam<Bound<'a, PyAny>> for PyScriptCon
                 none.into_any()
             }
         };
-        Ok(PyFloat::new(self.py, 123.1).into_any())
+        Ok(d)
     }
 }

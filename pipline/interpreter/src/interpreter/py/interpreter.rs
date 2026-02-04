@@ -5,9 +5,10 @@ use std::sync::{LazyLock, Mutex, OnceLock};
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use pyo3::ffi::c_str;
-use pyo3::prelude::{PyAnyMethods, PyBoolMethods, PyDictMethods};
-use pyo3::{pyfunction, Bound, CastError, Py, PyAny, PyErr, PyResult, Python};
+use pyo3::prelude::{PyAnyMethods, PyBoolMethods, PyDictMethods, PyModule, PyModuleMethods};
+use pyo3::{pyfunction, pymodule, wrap_pyfunction, Bound, CastError, Py, PyAny, PyErr, PyResult, Python};
 use pyo3::exceptions::PyRuntimeError;
+use pyo3::impl_::pyfunction::WrapPyFunctionArg;
 use pyo3::types::{PyBool, PyCode, PyDict, PyString};
 use mypip_types::interface::GlobalLayout;
 
@@ -17,6 +18,7 @@ static PY_INIT_MUTEX : Mutex<()> = Mutex::new(());
 static GLOBAL_REFER : OnceLock<&'static dyn GlobalLayout> = OnceLock::new();
 
 #[pyfunction]
+#[pyo3(name = "mypip_pair_conn_exec")]
 fn py_exec_pair_conn_wrapper(py: Python, conn_name : String, cmd : String, args : Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     let script_convert = super::convert::PyScriptConverter {py};
     let pair_convert = super::convert::PyPariConverter{py};
@@ -67,7 +69,29 @@ def __internal_get_error_code(uuid):
         te_map[uuid].result()
     except Exception as e:
         error_code = traceback.format_exc()
+    finally:
+        del te_map[uuid]
     return error_code"#), None, None);
+
+                let main_package_ret = py.import("__main__");
+                if main_package_ret.is_err() {
+                    let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, main_package_ret.err().unwrap().to_string());
+                    panic!("{}", panic_err);
+                }
+                let main_package = main_package_ret.unwrap();
+                let wrap_ret = wrap_pyfunction!(py_exec_pair_conn_wrapper, main_package.clone());
+
+                if wrap_ret.is_err() {
+                    let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, wrap_ret.err().unwrap().to_string());
+                    panic!("{}", panic_err);
+                }
+
+                let set_fn_ret = main_package.add_function(wrap_ret.unwrap());
+
+                if set_fn_ret.is_err() {
+                    let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, set_fn_ret.err().unwrap().to_string());
+                    panic!("{}", panic_err);
+                }
 
                 if run_ret.is_err() {
                     let ce = CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, run_ret.err().unwrap().to_string());
@@ -91,7 +115,7 @@ def __internal_get_error_code(uuid):
     fn run_script(&self, script : &'_ str) -> Result<String, CommonError> {
         let mut attach_ret :  Result<(), CommonError> = Ok(());
         let mut uuid = String::from("");
-        let all_script = format!(r#"__internal_run_eval("""{}""")"#, script);
+        let all_script = format!(r#"__internal_run_eval(r"""{}""")"#, script);
 
         let cstr = CString::new(all_script).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())

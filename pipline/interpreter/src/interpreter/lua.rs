@@ -8,11 +8,6 @@ use mlua::{Error, Table, UserData, Value};
 use mypip_types::interface::GlobalLayout;
 use crate::utils;
 
-const INJECT_GLOBAL_NAME : &'static str = "__inject_global_ptr";
-const PAIR_CONN_EXEC_FN_NAME: &'static str = "mypip_pair_conn_exec";
-
-const HTTP_EXEC_FN_NAME: &'static str = "mypip_http_exec";
-
 macro_rules! make_lua_error_message {
     ($e:expr) => {
         {
@@ -224,7 +219,7 @@ impl LuaInterpreter {
         Ok(mlua::Value::String(ret))
     }
     fn lua_exec_pair_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
-        let inject: mlua::AnyUserData = vm.globals().get(INJECT_GLOBAL_NAME)?;
+        let inject: mlua::AnyUserData = vm.globals().get(crate::constant::INJECT_GLOBAL_NAME)?;
 
         let global = inject.borrow::<LuaInterpreterGlobalInject>()?
             .global_ref;
@@ -262,13 +257,13 @@ impl LuaInterpreter {
         let inject_http_fn = lua_vm.create_function(Self::lua_exec_http_wrapper).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_http_wrapper init failed")
         })?;
-        lua_vm.globals().set(INJECT_GLOBAL_NAME, inject_global).map_err(|_| {
+        lua_vm.globals().set(crate::constant::INJECT_GLOBAL_NAME, inject_global).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get global set failed")
         })?;
-        lua_vm.globals().set(PAIR_CONN_EXEC_FN_NAME, inject_pair_fn).map_err(|_| {
+        lua_vm.globals().set(crate::constant::PAIR_CONN_EXEC_FN_NAME, inject_pair_fn).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
-        lua_vm.globals().set(HTTP_EXEC_FN_NAME, inject_http_fn).map_err(|_| {
+        lua_vm.globals().set(crate::constant::HTTP_EXEC_FN_NAME, inject_http_fn).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
 
