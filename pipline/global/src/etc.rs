@@ -8,20 +8,44 @@ use mypip_interpreter::interpreter;
 
 use crate::GLOBAL;
 
-pub fn create_lua_interpreter_pool(max : usize) -> InterpreterPool {
+#[derive(Clone)]
+pub(crate) enum InterpreterType {
+    PYTHON,
+    LUA
+}
+
+impl ToString for InterpreterType {
+    fn to_string(&self) -> String {
+        match self {
+            InterpreterType::PYTHON => String::from("python"),
+            InterpreterType::LUA => String::from("lua")
+        }
+    }
+}
+
+pub fn create_interpreter_pool(typ : InterpreterType, max : usize) -> InterpreterPool {
+    let name_type = typ.clone();
+    
     let gen_fn : Box<dyn Fn(()) -> Result<Box<dyn Interpreter>, CommonError>> = (|| {
         let real_fn  = move |_ : ()| {
-            let interpreter = interpreter::lua::LuaInterpreter::new(GLOBAL.deref());
+            let interpreter = match typ {
+                InterpreterType::LUA => interpreter::lua::LuaInterpreter::new(GLOBAL.deref()).map(|i| {
+                    Box::new(i) as Box<dyn Interpreter>
+                }),
+                InterpreterType::PYTHON => interpreter::py::PyInterpreter::new(GLOBAL.deref()).map(|i| {
+                    Box::new(i) as Box<dyn Interpreter>
+                })
+            };
 
             let inter = interpreter.map_err(|e| {
                 CommonError::extend(&CommonDefaultErrorKind::Etc, "get failed lua vm", e)
             })?;
 
-            Ok(Box::new(inter) as Box<dyn Interpreter>)
+            Ok(inter)
 
         };
         Box::new(real_fn)
     })();
 
-    get_thread_safe_pool("lua interpreter".to_string(), gen_fn, max)
+    get_thread_safe_pool(format!("{} interpreter", name_type.to_string()), gen_fn, max)
 }

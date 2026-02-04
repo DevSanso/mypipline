@@ -5,15 +5,15 @@ use common_rs::exec::interfaces::pair::PairValueEnum;
 use curl::easy::Easy;
 use mypip_types::interface::GlobalLayout;
 
-pub(crate) trait ConvertInterpreterParam<T : 'static> {
+pub(crate) trait ConvertInterpreterParam<T> {
     fn convert(&self, param : &'_ PairValueEnum) -> Result<T, CommonError>;
 }
 
-pub(crate) trait ConvertPairValue<T : 'static> {
+pub(crate) trait ConvertPairValue<T> {
     fn convert(&self, param : &'_ T) -> Result<PairValueEnum, CommonError>;
 }
 
-pub(crate) fn exec_pair_conn<T : 'static, R :'static>(global : &'static dyn GlobalLayout,
+pub(crate) fn exec_pair_conn<T, R>(global : &'static dyn GlobalLayout,
                                                       conn_name : &'_ str,
                                                       query : &'_ str,
                                                       param : T,
