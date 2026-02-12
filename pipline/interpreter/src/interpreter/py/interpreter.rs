@@ -1,21 +1,53 @@
 use std::collections::HashMap;
 use std::ffi::CString;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock};
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use pyo3::ffi::c_str;
-use pyo3::prelude::{PyAnyMethods, PyBoolMethods, PyDictMethods, PyModule, PyModuleMethods};
+use pyo3::prelude::{PyAnyMethods, PyBoolMethods, PyDictMethods, PyListMethods, PyModule, PyModuleMethods};
 use pyo3::{pyfunction, pymodule, wrap_pyfunction, Bound, CastError, Py, PyAny, PyErr, PyResult, Python};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::impl_::pyfunction::WrapPyFunctionArg;
-use pyo3::types::{PyBool, PyCode, PyDict, PyString};
+use pyo3::types::{PyBool, PyCode, PyDict, PyList, PyString};
 use mypip_types::interface::GlobalLayout;
 
 static PY_INIT_COUNT: AtomicUsize = AtomicUsize::new(0);
 static PY_INIT_MUTEX : Mutex<()> = Mutex::new(());
 
 static GLOBAL_REFER : OnceLock<&'static dyn GlobalLayout> = OnceLock::new();
+
+
+static PY_INIT_CODE : &'static str = r#"
+from concurrent.futures import ThreadPoolExecutor
+import uuid
+import traceback
+te_map = {}
+te = ThreadPoolExecutor(max_workers=100)
+global_map = {}
+
+def __internal_run_eval(code):
+    private_run_eval = lambda x : exec(x, global_map, {})
+    temp = uuid.uuid4()
+    random_uuid = str(temp)
+    compile_code = compile(code,'<string>','exec')
+    future = te.submit(private_run_eval, compile_code)
+    te_map[random_uuid] = future
+    return random_uuid
+
+def __internal_await_done(uuid):
+    return te_map[uuid].done()
+
+def __internal_get_error_code(uuid):
+    error_code = ""
+    try:
+        te_map[uuid].result()
+    except Exception as e:
+        error_code = traceback.format_exc()
+    finally:
+        del te_map[uuid]
+    return error_code"#;
 
 #[pyfunction]
 #[pyo3(name = "mypip_pair_conn_exec")]
@@ -44,34 +76,49 @@ impl PyInterpreter {
             let lock = PY_INIT_MUTEX.lock().expect("Python INIT Mutex lock is broken");
             Python::initialize();
             Python::attach(|py| {
-                let run_ret = py.run(c_str!(r#"
-from concurrent.futures import ThreadPoolExecutor
-import uuid
-import traceback
-te_map = {}
-te = ThreadPoolExecutor(max_workers=100)
+                let script_lib = global.get_script_lib_path();
+                if script_lib.is_err() {
+                    let panic_err = CommonError::extend(&CommonDefaultErrorKind::Critical, "", script_lib.err().unwrap());
+                    panic!("{}", panic_err)
+                }
 
-def __internal_run_eval(code):
-    private_run_eval = lambda x : exec(x)
-    temp = uuid.uuid4()
-    random_uuid = str(temp)
-    compile_code = compile(code,'<string>','exec')
-    future = te.submit(private_run_eval, compile_code)
-    te_map[random_uuid] = future
-    return random_uuid
+                if let Some(py_add_path) = script_lib.unwrap() {
+                    let sys = py.import("sys");
+                    if sys.is_err() {
+                        let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, sys.err().unwrap().to_string());
+                        panic!("{}", panic_err);
+                    }
+                    let path_package_ret = sys.unwrap().getattr("path");
+                    if path_package_ret.is_err() {
+                        let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, path_package_ret.err().unwrap().to_string());
+                        panic!("{}", panic_err);
+                    }
+                    let path_package = path_package_ret.unwrap();
+                    let path_list_ret :  Result<&Bound<'_, PyList>, CastError<'_, '_>> = path_package.cast::<PyList>();
+                    if path_list_ret.is_err() {
+                        let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, path_list_ret.err().unwrap().to_string());
+                        panic!("{}", panic_err);
+                    }
 
-def __internal_await_done(uuid):
-    return te_map[uuid].done()
+                    let mut py_add_path_buf = PathBuf::new();
+                    py_add_path_buf.push(py_add_path);
+                    py_add_path_buf.push("python");
 
-def __internal_get_error_code(uuid):
-    error_code = ""
-    try:
-        te_map[uuid].result()
-    except Exception as e:
-        error_code = traceback.format_exc()
-    finally:
-        del te_map[uuid]
-    return error_code"#), None, None);
+                    let set_package_path_ret = path_list_ret.unwrap().insert(0, py_add_path_buf.to_string_lossy().to_string());
+                    if set_package_path_ret.is_err() {
+                        let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, set_package_path_ret.err().unwrap().to_string());
+                        panic!("{}", panic_err);
+                    }
+                }
+
+                let cstr = CString::new(PY_INIT_CODE);
+
+                if cstr.is_err() {
+                    let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, cstr.err().unwrap().to_string());
+                    panic!("{}", panic_err);
+                }
+
+                let run_ret = py.run(cstr.unwrap().as_c_str(), None, None);
 
                 let main_package_ret = py.import("__main__");
                 if main_package_ret.is_err() {

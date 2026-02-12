@@ -8,5 +8,7 @@ pub struct AppConfig {
     #[serde(alias = "log_max_size_mb")]
     pub log_max_size_mb : u64,
     #[serde(alias = "log_type")]
-    pub log_type : String
+    pub log_type : String,
+    #[serde(alias = "script_lib")]
+    pub script_lib : Option<String>
 }

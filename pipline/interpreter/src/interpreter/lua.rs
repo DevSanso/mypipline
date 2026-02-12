@@ -1,5 +1,6 @@
+use std::path::PathBuf;
 use std::sync::Arc;
-use mlua::prelude::{Lua, LuaResult};
+use mlua::prelude::{Lua, LuaResult, LuaTable};
 
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
@@ -185,39 +186,6 @@ impl LuaInterpreter {
         
         Ok(ret)
     }
-    fn lua_exec_http_wrapper(vm : &Lua, (method, url, header, body) : (String, String, Table, Option<String>)) -> LuaResult<mlua::Value> {
-        let mut header_list = Vec::with_capacity(3);
-        for h in header.sequence_values::<mlua::Value>() {
-            if let Ok(mlua::Value::String(s)) = h {
-                header_list.push(s.to_string_lossy().to_string());
-            } else if let Err(e) = h {
-                return Err(Error::BadArgument {
-                    to: None,
-                    pos: 1,
-                    name: None,
-                    cause: Arc::new(Error::RuntimeError(make_lua_error_message!(e.to_string()))),
-                });
-            } else {
-                return Err(Error::BadArgument {
-                    to: None,
-                    pos: 1,
-                    name: None,
-                    cause: Arc::new(Error::RuntimeError(make_lua_error_message!("not support type"))),
-                });
-            }
-        }
-        let body_str : String = body.unwrap_or_else(|| String::from(""));
-        let resp = utils::exec_http_conn(url.as_str(),
-                                         method.as_str(), header_list.as_slice(), body_str).map_err(|e| {
-            Error::RuntimeError(make_lua_error_message!(e))
-        })?;
-
-        let ret = vm.create_string(resp.as_slice()).map_err(|e| {
-            Error::RuntimeError(make_lua_error_message!(e))
-        })?;
-
-        Ok(mlua::Value::String(ret))
-    }
     fn lua_exec_pair_conn_wrapper(vm : &Lua, (conn_name, cmd, args) : (String, String, Table)) -> LuaResult<mlua::Value> {
         let inject: mlua::AnyUserData = vm.globals().get(crate::constant::INJECT_GLOBAL_NAME)?;
 
@@ -254,19 +222,34 @@ impl LuaInterpreter {
         let inject_pair_fn = lua_vm.create_function(Self::lua_exec_pair_conn_wrapper).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_conn_wrapper init failed")
         })?;
-        let inject_http_fn = lua_vm.create_function(Self::lua_exec_http_wrapper).map_err(|_| {
-            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "lua_exec_http_wrapper init failed")
-        })?;
         lua_vm.globals().set(crate::constant::INJECT_GLOBAL_NAME, inject_global).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get global set failed")
         })?;
         lua_vm.globals().set(crate::constant::PAIR_CONN_EXEC_FN_NAME, inject_pair_fn).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
-        lua_vm.globals().set(crate::constant::HTTP_EXEC_FN_NAME, inject_http_fn).map_err(|_| {
-            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
+        let global_package : LuaTable = lua_vm.globals().get("package").map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
         })?;
 
+        let script_lib = global.get_script_lib_path().map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::NoData, "", e)
+        })?;
+        
+        if script_lib.is_some() {
+            let current_path: String = global_package.get("path").map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            })?;
+            
+            let mut new_path_buf = PathBuf::with_capacity(current_path.len() + 10);
+            new_path_buf.push(script_lib.unwrap());
+            new_path_buf.push("lua");
+            new_path_buf.push("?.lua");
+            
+            global_package.set("path", new_path_buf.to_string_lossy().to_string() + ";" + &current_path).map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            })?;
+        }
         Ok(LuaInterpreter {
             lua: lua_vm,
             global_ref : global

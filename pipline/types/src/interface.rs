@@ -31,4 +31,5 @@ pub trait GlobalLayout : Sync {
     fn reset(&self) -> Result<(), CommonError>;
     fn initialize(&self, identifier : String, base_dir : String) -> Result<(), CommonError>;
     fn get_script_data(&self, name : &'_ str) -> Result<String, CommonError>;
+    fn get_script_lib_path(&self) -> Result<Option<String>, CommonError>;
 }

@@ -140,7 +140,8 @@ pub struct GlobalOnceLockStore {
     base_dir : String,
     config_dir: String,
     log_dir    : String,
-    script_dir : String
+    script_dir : String,
+    script_lib_base_dir: Option<String>,
 }
 pub struct GlobalImpl {
     store : Arc<RwLock<GlobalStore>>,
@@ -257,6 +258,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
                config_dir,
                log_dir,
                script_dir,
+               script_lib_base_dir : app_config.script_lib
            }
         });
 
@@ -292,6 +294,17 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         } else {
             CommonError::new(&CommonDefaultErrorKind::NoData, format!("not exists {}", name)).to_result()
         }
+    }
+    
+    fn get_script_lib_path(&self) -> Result<Option<String>, CommonError> {
+        let s = match self.once_store.get() {
+            None => {
+                return CommonError::new(&CommonDefaultErrorKind::Critical, "global once store not init").to_result();
+            }
+            Some(s) => {s}
+        };
+        
+        Ok(s.script_lib_base_dir.clone())
     }
 }
 
