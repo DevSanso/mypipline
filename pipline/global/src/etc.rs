@@ -29,10 +29,10 @@ pub fn create_interpreter_pool(typ : InterpreterType, max : usize) -> Interprete
     let gen_fn : Box<dyn Fn(()) -> Result<Box<dyn Interpreter>, CommonError>> = (|| {
         let real_fn  = move |_ : ()| {
             let interpreter = match typ {
-                InterpreterType::LUA => interpreter::lua::LuaInterpreter::new(GLOBAL.deref()).map(|i| {
+                InterpreterType::LUA => interpreter::lua::LuaInterpreter::new().map(|i| {
                     Box::new(i) as Box<dyn Interpreter>
                 }),
-                InterpreterType::PYTHON => interpreter::py::PyInterpreter::new(GLOBAL.deref()).map(|i| {
+                InterpreterType::PYTHON => interpreter::py::PyInterpreter::new().map(|i| {
                     Box::new(i) as Box<dyn Interpreter>
                 })
             };

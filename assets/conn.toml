@@ -1,19 +1,27 @@
 [connection.service]
-ip = "127.0.0.1"
-port = 5432
-database = "service"
-user = "user"
-password = "user"
+addr = "localhost:5432"
+conn_name = "postgres"
+user = "postgres"
+password = "postgres"
 type = "postgres"
 timeout = 0
 max_conn = 10
 
 [connection.data_store]
-ip = "127.0.0.1"
-port = 5432
-database = "data_store"
-user = "user"
-password = "user"
-type = "mysql"
+addr = "localhost:6379"
+conn_name = ""
+user = ""
+password = ""
+type = "redis"
 timeout = 0
 max_conn = 10
+
+[connection.service_odbc]
+type = "odbc"
+conn_name = "postgres"
+user = "postgres"
+password = "postgres"
+timeout = 10
+addr = "localhost:5432"
+max_conn = 10
+odbc = { driver = "PostgreSQL Unicode", current_time_query = "SELECT (EXTRACT(EPOCH FROM clock_timestamp()) * 1000)::bigint  AS unix_timestamp", current_time_col_name = "unix_timestamp"}

@@ -1,19 +1,27 @@
-
-
-
 [plan.plan1]
-interval = {connection="", second=5}
+interval = {connection="data_store", second=11}
 type     = "query"
+enable = false
 chain = [
-    {id="first", connection="service", query="select $1 as num", args =[
+    {id="first", connection="service", query="""
+    select $1 as num, '12' as num2
+    union all
+    select $1 as num, '123' as num2""", args =[
         { data = "hello", idx = 1}
     ]},
-    {id="final", connection="data_store", query="insert into testing(num) values($1) ", bind=[
-        {  id="first", key="num", col=1, idx=1 }
+    {id="final", connection="data_store", query="set", bind=[
+        {  id="first", key="num", row=1, idx=2 },
+        {  id="first", key="num2", idx=1 }
     ]},
 ]
 
 [plan.plan2]
-interval = {connection="service", second=5}
+interval = {connection="", second=3}
 type     = "script"
-script   = {lang="lua", file = "tseting.lua"}
+enable = true
+script = { lang="lua", file="test.lua" }
+
+[plan.plan3]
+interval = {connection="", second=3}
+type     = "script"
+script = { lang="python", file="test.py" }
