@@ -4,6 +4,7 @@ mod etc;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{LazyLock, OnceLock};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -140,7 +141,8 @@ pub struct GlobalOnceLockStore {
     base_dir : String,
     config_dir: String,
     log_dir    : String,
-    script_dir : String
+    script_dir : String,
+    script_lib_base_dir: Option<String>,
 }
 pub struct GlobalImpl {
     store : Arc<RwLock<GlobalStore>>,
@@ -151,7 +153,7 @@ pub struct GlobalImpl {
 }
 
 impl mypip_types::interface::GlobalLayout for GlobalImpl {
-    fn get_exec_pool(&self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError > {
+    fn get_exec_pool(&'static self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError > {
         if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -166,7 +168,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         }
         Ok(opt.unwrap().clone())
     }
-    fn get_plan(&self) -> Result<HashMap<String, Plan>, CommonError> {
+    fn get_plan(&'static self) -> Result<HashMap<String, Plan>, CommonError> {
         if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -178,7 +180,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         Ok( reader.plans.plan.clone())
     }
 
-    fn get_interpreter_pool(&self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError> {
+    fn get_interpreter_pool(&'static self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError> {
         if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -193,7 +195,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         }
         Ok(opt.unwrap().clone())
     }
-    fn close(&self) -> Result<(), CommonError> {
+    fn close(&'static self) -> Result<(), CommonError> {
         if !self.once.load(Ordering::Relaxed) == true {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -203,10 +205,13 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         })?;
 
         writer.exec_pool_map.clear();
+        mypip_interpreter::init::interpreter_exit().map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::Critical, "interpreter exit failed", e)
+        })?;
         Ok(())
     }
 
-    fn reset(&self) -> Result<(), CommonError> {
+    fn reset(&'static self) -> Result<(), CommonError> {
         if !self.once.load(Ordering::Relaxed) {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "not initialized").to_result();
         }
@@ -220,11 +225,10 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         Ok(())
     }
 
-    fn initialize(&self, identifier : String, base_dir : String) -> Result<(), CommonError> {
+    fn initialize(&'static self, identifier : String, base_dir : String) -> Result<(), CommonError> {
         if self.once.load(Ordering::Relaxed) == true {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
         }
-
         let config_dir = std::path::Path::new(&base_dir).join("config").join(identifier.as_str()).to_string_lossy().to_string();
         let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier.as_str()).to_string_lossy().to_string();
         let script_dir = std::path::Path::new(&base_dir).join("scripts").join(identifier.as_str()).to_string_lossy().to_string();
@@ -257,6 +261,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
                config_dir,
                log_dir,
                script_dir,
+               script_lib_base_dir : app_config.script_lib
            }
         });
 
@@ -272,6 +277,10 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         };
 
         store.reset(loader.as_ref())?;
+        mypip_interpreter::init::interpreter_init(self).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::Critical, "interpreter init failed", e)
+        })?;
+        
         store.exec_interpreter_map.insert("lua", crate::etc::create_interpreter_pool(LUA,100));
         store.exec_interpreter_map.insert("python", crate::etc::create_interpreter_pool(PYTHON, 100));
 
@@ -282,7 +291,7 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         Ok(())
     }
 
-    fn get_script_data(&self, name: &'_ str) -> Result<String, CommonError> {
+    fn get_script_data(&'static self, name: &'_ str) -> Result<String, CommonError> {
         let reader = self.store.read().map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
         })?;
@@ -292,6 +301,26 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         } else {
             CommonError::new(&CommonDefaultErrorKind::NoData, format!("not exists {}", name)).to_result()
         }
+    }
+    
+    fn get_script_lib_path(&'static self) -> Result<String, CommonError> {
+        let s = match self.once_store.get() {
+            None => {
+                return CommonError::new(&CommonDefaultErrorKind::Critical, "global once store not init").to_result();
+            }
+            Some(s) => {s}
+        };
+        
+        if let Some(dir) = s.script_lib_base_dir.clone() {
+            Ok(dir)    
+        } 
+        else {
+            let mut buffer = PathBuf::new();
+            buffer.push(s.script_dir.clone());
+            buffer.push("lib");
+            Ok(buffer.to_string_lossy().to_string())
+        }
+       
     }
 }
 
