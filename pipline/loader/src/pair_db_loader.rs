@@ -22,13 +22,13 @@ macro_rules! get_pair_db_connection {
 
 macro_rules! duckdb_select_query {
     ($table:expr) => {
-        concat!("SELECT name as name, value::VARCHAR as data FROM ", $table, " WHERE identifier = ? ")
+        concat!("SELECT name as name, value::VARCHAR as data FROM ", $table, " WHERE identifier = ? AND use_yn = 'Y' ")
     };
 }
 
 macro_rules! postgres_select_query {
     ($table:expr) => {
-        concat!("SELECT name as name, value::TEXT as data FROM ", $table, " WHERE identifier = $1 ")
+        concat!("SELECT name as name, value::TEXT as data FROM ", $table, " WHERE identifier = $1 AND use_yn = 'Y' ")
     };
 }
 
@@ -46,22 +46,22 @@ impl PairDbLoader {
         let mut app_path = PathBuf::from_str(conf_path).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
         })?;
-        
+
         app_path.push(identifier.as_str());
         app_path.push("app.toml");
-        
+
         let data = std::fs::read_to_string(app_path).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
         })?;
-        
+
         let convert : AppConfig = toml::from_str(data.as_str()).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail,e.to_string())
         })?;
-        
+
         if convert.db_config.is_none() {
             return CommonError::new(&CommonDefaultErrorKind::NoData, "not exists db config").to_result();
         }
-        
+
         let db_conf = convert.db_config.as_ref().expect("db_config is broken");
         let conn_info = PairExecutorInfo {
             addr: db_conf.db_address.clone(),
@@ -71,16 +71,16 @@ impl PairDbLoader {
             timeout_sec: 10,
             extend : None
         };
-        
+
         let p = match db_conf.db_type.as_str() {
             "postgres" => create_pg_pair_conn_pool("pair_db_loader".to_string(), conn_info, 1),
             "duckdb" => create_duckdb_pair_conn_pool("pair_db_loader".to_string(),conn_info, 1),
             _ => {
-                return CommonError::new(&CommonDefaultErrorKind::NoSupport, 
+                return CommonError::new(&CommonDefaultErrorKind::NoSupport,
                                         format!("not support {}", db_conf.db_type)).to_result();
             }
         };
-        
+
         Ok(PairDbLoader {
             identifier,
             db_pool : p,
@@ -163,7 +163,7 @@ impl ConfLoader for PairDbLoader {
                 return Ok(ret.clone());
             }
         }
-        
+
         let db_type = self.app_config.db_config.as_ref().expect("not exists db config").db_type.as_str();
         let query = match db_type {
             "postgres" => postgres_select_query!("mypip_plan"),
@@ -195,7 +195,7 @@ impl ConfLoader for PairDbLoader {
         for use_p_item in use_p {
             root.plan.insert(use_p_item.0.clone(), use_p_item.1);
         }
-        
+
         if self.once_init_flag {
             self.once_cache.0.get_or_init(|| {root.clone()});
         }
@@ -209,7 +209,7 @@ impl ConfLoader for PairDbLoader {
                 return Ok(ret.clone());
             }
         }
-        
+
         let db_type = self.app_config.db_config.as_ref().expect("not exists db config").db_type.as_str();
         
         let query = match db_type {
@@ -256,7 +256,7 @@ impl ConfLoader for PairDbLoader {
                 return Ok(ret.clone());
             }
         }
-        
+
         let db_type = self.app_config.db_config.as_ref().expect("not exists db config").db_type.as_str();
         let query = match db_type {
             "postgres" => postgres_select_query!("mypip_script"),
@@ -292,7 +292,7 @@ impl ConfLoader for PairDbLoader {
         if self.once_init_flag {
             self.once_cache.2.get_or_init(|| {root.clone()});
         }
-        
+
         Ok(root)
     }
 
