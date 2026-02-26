@@ -12,7 +12,7 @@ pub struct TomlFileConfLoader {
 
     identifier : String,
     is_once_load : bool,
-    once_cache : (OnceLock<PlanRoot>, OnceLock<ConnectionInfos>, OnceLock<AppConfig>)
+    once_cache : (OnceLock<PlanRoot>, OnceLock<ConnectionInfos>, OnceLock<AppConfig>, OnceLock<HashMap<String,String>>),
 }
 
 impl TomlFileConfLoader {
@@ -22,7 +22,7 @@ impl TomlFileConfLoader {
             is_once_load : load_once,
             identifier,
             script_dir,
-            once_cache : (OnceLock::new(), OnceLock::new(), OnceLock::new()) }
+            once_cache : (OnceLock::new(), OnceLock::new(), OnceLock::new(), OnceLock::new()), }
     }
 
     pub fn read_data(&self, data_file : String) -> Result<String, CommonError> {
@@ -93,6 +93,12 @@ impl ConfLoader for TomlFileConfLoader {
     }
 
     fn load_script_data(&self) -> Result<HashMap<String, String>, CommonError> {
+        if self.is_once_load {
+            if let Some(cache) = self.once_cache.3.get() {
+                return Ok(cache.clone());
+            }
+        }
+        
         let plans = self.load_plan().map_err(|e| {
             CommonError::extend(&CommonDefaultErrorKind::InitFailed, "load plan failed", e)
         })?;
@@ -108,7 +114,11 @@ impl ConfLoader for TomlFileConfLoader {
                 map.insert(script.file, data);
             }
         }
-
+        
+        if self.is_once_load {
+            self.once_cache.3.get_or_init(|| {map.clone()});
+        }
+        
         Ok(map)
     }
 

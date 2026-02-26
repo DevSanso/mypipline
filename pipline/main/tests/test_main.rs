@@ -13,7 +13,7 @@ use common_rs::logger::log_info;
 #[test]
 fn test_main() -> Result<(), Box<dyn std::error::Error>> {
     let base_dir = env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/assets";
-    GLOBAL.initialize("test".to_string(), base_dir)?;
+    GLOBAL.initialize("test".to_string(), base_dir, "file".to_string(), true)?;
 
     let mut cancel = PlanThreadExecutor::daemon();
 

@@ -23,13 +23,15 @@ pub trait Interpreter {
     fn run(&self, name : &'_ str) -> Result<(),CommonError>;
 }
 
+pub trait GlobalLayoutInit : Sync {
+    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool) -> Result<(), CommonError>;
+}
 pub trait GlobalLayout : Sync {
     fn get_exec_pool(&'static self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError >;
     fn get_plan(&'static self) -> Result<HashMap<String, Plan>, CommonError>;
     fn get_interpreter_pool(&'static self, name : Cow<'_, str>) -> Result<InterpreterPool, CommonError>;
     fn close(&'static self) -> Result<(), CommonError>;
     fn reset(&'static self) -> Result<(), CommonError>;
-    fn initialize(&'static self, identifier : String, base_dir : String) -> Result<(), CommonError>;
     fn get_script_data(&'static self, name : &'_ str) -> Result<String, CommonError>;
-    fn get_script_lib_path(&'static self) -> Result<String, CommonError>;
+    fn get_script_lib_path(&'static self) -> Result<Option<String>, CommonError>;
 }

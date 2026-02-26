@@ -157,10 +157,6 @@ impl LuaInterpreter {
 
         let g_ref = *crate::global::GLOBAL_REFER.get().expect("broken global refer");
 
-        let script_lib = g_ref.get_script_lib_path().map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::NoData, "", e)
-        })?;
-
         let inject_global = lua_vm.create_userdata(LuaInterpreterGlobalInject {
             global_ref : g_ref
         }).map_err(|_| {
@@ -175,22 +171,27 @@ impl LuaInterpreter {
         lua_vm.globals().set(crate::constant::PAIR_CONN_EXEC_FN_NAME, inject_pair_fn).map_err(|_| {
             CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, "data_conn_get set failed")
         })?;
-        let global_package : LuaTable = lua_vm.globals().get("package").map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
-        })?;
+        
+        if let Some(script_lib) = g_ref.get_script_lib_path().map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::NoData, "", e)
+        })? {
+            let global_package : LuaTable = lua_vm.globals().get("package").map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            })?;
+            
+            let current_path: String = global_package.get("path").map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            })?;
+            
+            let mut new_path_buf = PathBuf::with_capacity(current_path.len() + 10);
+            new_path_buf.push(script_lib);
+            new_path_buf.push("lua");
+            new_path_buf.push("?.lua");
 
-        let current_path: String = global_package.get("path").map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
-        })?;
-
-        let mut new_path_buf = PathBuf::with_capacity(current_path.len() + 10);
-        new_path_buf.push(script_lib);
-        new_path_buf.push("lua");
-        new_path_buf.push("?.lua");
-
-        global_package.set("path", new_path_buf.to_string_lossy().to_string() + ";" + &current_path).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
-        })?;
+            global_package.set("path", new_path_buf.to_string_lossy().to_string() + ";" + &current_path).map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail, e.to_string())
+            })?;
+        }
 
         Ok(LuaInterpreter {
             lua: lua_vm,
