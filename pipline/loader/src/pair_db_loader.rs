@@ -1,3 +1,5 @@
+mod query;
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -89,71 +91,6 @@ impl PairDbLoader {
             once_cache : (OnceLock::new(), OnceLock::new(), OnceLock::new()),
         })
     }
-    fn parsing_data<'a, T: for<'de> serde::Deserialize<'de>>(data : &'a str) -> Result<T, CommonError> {
-        let ret = match serde_json::from_str(data) {
-            Ok(data) => Ok(data),
-            Err(e) => Err(CommonError::new(&CommonDefaultErrorKind::ParsingFail, e.to_string())),
-        };
-
-        ret
-    }
-
-    fn get_data_rows(data : &'_ PairValueEnum) -> Result<Vec<(&'_ String, &'_ String)>, CommonError> {
-        let ret = if let PairValueEnum::Map(m) = data {
-            let names = if let Some(PairValueEnum::Array(name)) = m.get("name") {
-                name
-            } else {
-                return CommonError::new(&CommonDefaultErrorKind::ParsingFail, "get name array failed").to_result();
-            };
-            let data = if let Some(PairValueEnum::Array(d)) = m.get("data") {
-                d
-            } else {
-                return CommonError::new(&CommonDefaultErrorKind::ParsingFail, "get data array failed").to_result();
-            };
-
-            if names.len() != data.len() {
-                return CommonError::new(&CommonDefaultErrorKind::Critical, "array not matching").to_result();
-            }
-
-            if names.len() == 0 {
-                vec![]
-            } else {
-                let mut v = Vec::with_capacity(names.len());
-                for idx in 0..names.len() {
-                    let unboxing_name = if let PairValueEnum::String(n) = &names[idx] {
-                        n
-                    } else {
-                        return CommonError::new(&CommonDefaultErrorKind::ParsingFail, "name unboxing failed").to_result();
-                    };
-
-                    let unboxing_data = if let PairValueEnum::String(d) = &data[idx] {
-                        d
-                    } else {
-                        return CommonError::new(&CommonDefaultErrorKind::ParsingFail, "name unboxing failed").to_result();
-                    };
-                    v.push((unboxing_name, unboxing_data));
-                }
-                v
-            }
-        } else {
-            return CommonError::new(&CommonDefaultErrorKind::ParsingFail, "root parsing failed").to_result();
-        };
-
-        Ok(ret)
-    }
-
-    fn get_use_reset_data<'a, T: for<'de> serde::Deserialize<'de>>(v : &'a Vec<(&'a String, &'a String)>) -> Result<Vec<(&'a String, T)>, CommonError> {
-        let mut ret = Vec::with_capacity(v.len());
-
-        for item in v.iter() {
-            let convert : T = Self::parsing_data(item.0.as_str()).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, "", e)
-            })?;
-            ret.push((item.0, convert))
-        }
-
-        Ok(ret)
-    }
 }
 
 impl ConfLoader for PairDbLoader {
@@ -182,16 +119,7 @@ impl ConfLoader for PairDbLoader {
         let data = conn.execute_pair(query, &param).map_err(|e| {
             CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "", e)
         })?;
-
-        let rows = PairDbLoader::get_data_rows(&data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, "", e)
-        })?;
-
-        let mut root = PlanRoot::default();
-        let use_p = Self::get_use_reset_data::<Plan>(&rows).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::FetchFailed, "", e)
-        })?;
-
+        
         for use_p_item in use_p {
             root.plan.insert(use_p_item.0.clone(), use_p_item.1);
         }
