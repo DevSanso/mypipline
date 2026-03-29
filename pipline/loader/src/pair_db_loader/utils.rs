@@ -9,22 +9,22 @@ macro_rules! plan_select_query {
 SELECT
     p.name                  AS plan_name,
     p.type_name             AS type,
-    p.interval_connection,  AS interval_connection,
-    p.interval_second,      AS interval_second,
+    p.interval_connection   as interval_connection,
+    p.interval_second      AS interval_second,
     pc.id                   AS chain_id,
     pc.next_chain_id        AS chain_next_id,
     pc.connection           AS chain_connection,
-    pc.query,               AS chain_query,
-    m.mapping_type,         AS mapping_type,
-    m.ranking,              AS mapping_ranking,
+    pc.query               AS chain_query,
+    m.mapping_type         AS mapping_type,
+    m.ranking              AS mapping_ranking,
     pa.data                 AS arg_data,
     pa.idx                  AS arg_idx,
-    pb.bind_id,             AS bind_id,
+    pb.bind_id             AS bind_id,
     pb.key                  AS bind_key,
     pb.row                  AS bind_row,
     pb.idx                  AS bind_idx,
     ps.lang                 AS script_lang,
-    ps.script_file                 AS script_file
+    ps."file"                 AS script_file
 FROM mypip_plan p
 LEFT JOIN mypip_plan_chain              pc ON pc.plan_id         = p.id
 LEFT JOIN mypip_plan_chain_mapping      m  ON m.chain_id         = pc.id

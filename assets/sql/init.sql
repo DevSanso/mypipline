@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS mypip_connection_info (
-    identifier          TEXT
+    identifier          TEXT,
     id                         INT         NOT NULL,
     max_size                   BIGINT      NOT NULL,
     "name"                     TEXT        NOT NULL,
@@ -60,17 +60,17 @@ CREATE INDEX mypip_plan_chain_i1 ON mypip_plan_chain(plan_id);
 CREATE INDEX mypip_plan_chain_i2 ON mypip_plan_chain(next_chain_id);
 
 CREATE TABLE IF NOT EXISTS mypip_plan_script (
-    id              INT         NOT NULL PRIMARY KEY,
+    id              INT         NOT null PRIMARY KEY,
     plan_id         INT         NOT NULL,
     lang            TEXT        NOT NULL,
-    "file"            TEXT        NOT NULL
+    "file"            TEXT        NOT null
 );
 
 CREATE UNIQUE INDEX mypip_plan_script_u1 ON mypip_plan_script(plan_id);
 
 CREATE TABLE IF NOT EXISTS mypip_plan (
-    identifier          TEXT
-    id                  INT         NOT NULL PRIMARY KEY,
+    identifier          TEXT,
+    id                  INT,
     "name"              TEXT        NOT NULL,
     type_name           TEXT        NOT NULL,
     "enable"              BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -86,4 +86,4 @@ create table mypip_plan_script_data (
 	script_data TEXT not null,
 
 	primary key(identifier, script_file)
-)
+);
