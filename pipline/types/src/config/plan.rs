@@ -24,7 +24,7 @@ pub struct PlanChain {
     pub bind : Option<Vec<PlanChainBindParam>>,
     pub args : Option<Vec<PlanChainArgs>>
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlanInterval {
     pub connection : Option<String>,
     pub second     : u64
@@ -36,7 +36,7 @@ pub struct PlanScript  {
     pub file : String
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Plan {
     pub interval : PlanInterval,
     #[serde(alias = "type")]

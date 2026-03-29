@@ -1,7 +1,8 @@
 CREATE TABLE IF NOT EXISTS mypip_connection_info (
+    identifier          TEXT
     id                         INT         NOT NULL,
     max_size                   BIGINT      NOT NULL,
-    "name"                     TEXT        NOT NULL PRIMARY KEY,
+    "name"                     TEXT        NOT NULL,
     conn_type                  TEXT        NOT NULL,
     conn_name                  TEXT        NOT NULL,
     conn_user                  TEXT        NOT NULL,
@@ -11,7 +12,9 @@ CREATE TABLE IF NOT EXISTS mypip_connection_info (
 
     odbc_driver                TEXT,
     odbc_current_time_query    TEXT,
-    odbc_current_time_col_name TEXT
+    odbc_current_time_col_name TEXT,
+
+    PRIMARY KEY(identifier, "name" )
 );
 
 CREATE TABLE IF NOT EXISTS mypip_plan_chain_bind_param (
@@ -66,10 +69,21 @@ CREATE TABLE IF NOT EXISTS mypip_plan_script (
 CREATE UNIQUE INDEX mypip_plan_script_u1 ON mypip_plan_script(plan_id);
 
 CREATE TABLE IF NOT EXISTS mypip_plan (
+    identifier          TEXT
     id                  INT         NOT NULL PRIMARY KEY,
     "name"              TEXT        NOT NULL,
     type_name           TEXT        NOT NULL,
     "enable"              BOOLEAN     NOT NULL DEFAULT TRUE,
     interval_connection TEXT,
-    interval_second     BIGINT      NOT NULL
+    interval_second     BIGINT      NOT NULL,
+
+    PRIMARY KEY(identifier, id)
 );
+
+create table mypip_plan_script_data (
+	identifier TEXT,
+	script_file TEXT,
+	script_data TEXT not null,
+
+	primary key(identifier, script_file)
+)
