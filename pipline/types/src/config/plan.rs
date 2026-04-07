@@ -16,7 +16,7 @@ pub struct PlanChainArgs {
     pub data  : String,
     pub idx   : usize
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlanChain {
     pub id : String,
     pub connection: String,

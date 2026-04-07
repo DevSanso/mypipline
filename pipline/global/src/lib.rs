@@ -155,7 +155,7 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
 
         let new_loader : Box<dyn ConfLoader> = match loader_type.as_str() {
             constant::LOADER_TYPE_DB => {
-                pair_db_loader::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load).map(|l| {
+                pair_db_loader::rdb_pair_db_loader::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load).map(|l| {
                     Box::new(l) as Box<dyn ConfLoader>
                 }).map_err(|e| {
                     CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
