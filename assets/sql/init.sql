@@ -80,10 +80,18 @@ CREATE TABLE IF NOT EXISTS mypip_plan (
     PRIMARY KEY(identifier, id)
 );
 
-create table mypip_plan_script_data (
+create table IF NOT EXISTS mypip_plan_script_data (
 	identifier TEXT,
 	script_file TEXT,
 	script_data TEXT not null,
 
 	primary key(identifier, script_file)
+);
+
+CREATE TABLE IF NOT EXISTS mypip_plan_toml ( 
+  "identifier" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "toml_data" TEXT NOT NULL,
+  "enable" bool not null,
+  CONSTRAINT "mypip_plan_toml_pkey" PRIMARY KEY ("identifier", "name")
 );

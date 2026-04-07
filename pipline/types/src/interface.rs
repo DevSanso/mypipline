@@ -15,7 +15,6 @@ pub trait ConfLoader : Send + Sync {
     fn load_connection(&self) -> Result<ConnectionInfos, CommonError>;
 
     fn load_script_data(&self) -> Result<HashMap<String, String>, CommonError>;
-    fn load_app_config(&self) -> Result<AppConfig, CommonError>;
 }
 
 pub trait Interpreter {
@@ -24,7 +23,7 @@ pub trait Interpreter {
 }
 
 pub trait GlobalLayoutInit : Sync {
-    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool) -> Result<(), CommonError>;
+    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool, app_config: AppConfig) -> Result<(), CommonError>;
 }
 pub trait GlobalLayout : Sync {
     fn get_exec_pool(&'static self, name : Cow<'_, str>) -> Result<PairExecutorPool, CommonError >;

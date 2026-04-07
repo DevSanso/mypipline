@@ -27,7 +27,7 @@ pub struct PairDbLoader {
     identifier : String,
     db_pool : PairExecutorPool,
     app_config: AppConfig,
-
+    is_toml : bool,
     plan_query : &'static str,
     conn_query : &'static str,
     script_query : &'static str,
@@ -37,7 +37,7 @@ pub struct PairDbLoader {
 }
 
 impl PairDbLoader {
-    pub fn new(identifier : String ,conf_path : &'_ str, load_once : bool) -> Result<Self, CommonError> {
+    pub fn new(identifier : String ,conf_path : &'_ str, load_once : bool, is_toml : bool) -> Result<Self, CommonError> {
         let mut app_path = PathBuf::from_str(conf_path).map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
         })?;
@@ -77,8 +77,8 @@ impl PairDbLoader {
         };
 
         let (plan_query, conn_query, script_query) = match db_conf.db_type.as_str() {
-            "postgres" => (utils::plan_select_query!("$1"), utils::conn_select_query!("$1"), utils::script_data_select_query!("$1")),
-            "duckdb" => (utils::plan_select_query!("?"), utils::conn_select_query!("?"), utils::script_data_select_query!("?")),
+            "postgres" => (if is_toml {utils::plan_toml_select_query!("$1")} else {utils::plan_select_query!("$1")}, utils::conn_select_query!("$1"), utils::script_data_select_query!("$1")),
+            "duckdb" => (if is_toml {utils::plan_toml_select_query!("?")} else {utils::plan_select_query!("?")}, utils::conn_select_query!("?"), utils::script_data_select_query!("?")),
             _ => {
                 return CommonError::new(&CommonDefaultErrorKind::NoSupport,
                                         format!("not support {}", db_conf.db_type)).to_result();
@@ -90,6 +90,7 @@ impl PairDbLoader {
             db_pool : p,
             app_config : convert,
             once_init_flag : load_once,
+            is_toml,
             plan_query,
             conn_query,
             script_query,
@@ -146,18 +147,14 @@ impl PairDbLoader {
         }
         ret
     }
-}
 
-impl ConfLoader for PairDbLoader {
-    fn load_plan(&self) -> Result<PlanRoot, CommonError> {
+    fn load_plan_table(&self) -> Result<PlanRoot, CommonError> {
         if self.once_init_flag {
             if let Some(ret) = self.once_cache.0.get() {
                 return Ok(ret.clone());
             }
         }
-
-        let db_type = self.app_config.db_config.as_ref().expect("not exists db config").db_type.as_str();
-
+        
         let mut item = get_pair_db_connection!(self)?;
         let conn = item.get_value();
 
@@ -262,8 +259,59 @@ impl ConfLoader for PairDbLoader {
 
             ret.plan.insert(p_range.0.clone(), p);
         }
-
+        if self.once_init_flag {
+            self.once_cache.0.get_or_init(|| {ret.clone()});
+        }
         Ok(ret)
+    }
+    
+    fn load_plan_toml_data(&self) -> Result<PlanRoot, CommonError> {
+        if self.once_init_flag {
+            if let Some(ret) = self.once_cache.0.get() {
+                return Ok(ret.clone());
+            }
+        }
+
+        let mut item = get_pair_db_connection!(self)?;
+        let conn = item.get_value();
+
+        let param = PairValueEnum::Array(vec![PairValueEnum::String(self.identifier.clone())]);
+
+        let data = conn.execute_pair(self.plan_query, &param).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "", e)
+        })?;
+
+        let plan_name = utils::get_col_ref!("name", &data, str)?;
+        let plan_toml = utils::get_col_ref!("toml_data", &data, str)?;
+
+        if !utils::vec_if_same_len!(plan_name, plan_toml) {
+            return CommonError::new(&CommonDefaultErrorKind::Critical, "").to_result()
+        }
+
+        let mut ret = PlanRoot::default();
+        for idx in 0..plan_toml.len() {
+            ret.plan.insert(plan_name[idx].clone(), toml::from_str(plan_toml[idx].as_str()).map_err(|e| {
+                CommonError::new(&CommonDefaultErrorKind::ParsingFail,e.to_string())
+            })?);
+        }
+        if self.once_init_flag {
+            self.once_cache.0.get_or_init(|| {ret.clone()});
+        }
+        Ok(ret)
+    }
+}
+
+impl ConfLoader for PairDbLoader {
+    fn load_plan(&self) -> Result<PlanRoot, CommonError> {
+        if self.is_toml {
+            self.load_plan_toml_data().map_err(|e| {
+                CommonError::extend(&CommonDefaultErrorKind::ParsingFail, "", e)
+            })
+        } else {
+            self.load_plan_table().map_err(|e| {
+                CommonError::extend(&CommonDefaultErrorKind::ParsingFail, "", e)
+            })
+        }
     }
 
     fn load_connection(&self) -> Result<ConnectionInfos, CommonError> {
@@ -272,9 +320,7 @@ impl ConfLoader for PairDbLoader {
                 return Ok(ret.clone());
             }
         }
-
-        let db_type = self.app_config.db_config.as_ref().expect("not exists db config").db_type.as_str();
-
+        
         let mut item = get_pair_db_connection!(self)?;
         let conn = item.get_value();
 
@@ -374,9 +420,5 @@ impl ConfLoader for PairDbLoader {
         }
 
         Ok(root)
-    }
-
-    fn load_app_config(&self) -> Result<AppConfig, CommonError> {
-        Ok(self.app_config.clone())
     }
 }

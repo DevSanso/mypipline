@@ -2,6 +2,21 @@ use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::interfaces::pair::PairValueEnum;
 
+macro_rules! plan_toml_select_query {
+     ($bind_expr:expr) => {
+        concat!(
+r#"
+select
+    name,
+    toml_data
+from
+	mypip_plan_toml
+where
+   "enable" = true
+   AND identifier = "#, $bind_expr,
+        )
+    };
+}
 macro_rules! plan_select_query {
     ($bind_expr:expr) => {
         concat!(
@@ -282,3 +297,4 @@ pub(super) use plan_select_query;
 pub(super) use conn_select_query;
 pub(super) use script_data_select_query;
 pub(super) use get_col_ref;
+pub(super) use plan_toml_select_query;

@@ -17,6 +17,7 @@ use common_rs::exec::scylla::create_scylla_pair_conn_pool;
 use common_rs::exec::odbc::create_odbc_pair_conn_pool;
 use common_rs::init::InitConfig;
 use mypip_loader::{toml_file_loader, pair_db_loader};
+use mypip_types::config::app::AppConfig;
 use mypip_types::interface::ConfLoader;
 use mypip_types::typealias::InterpreterPool;
 use mypip_types::config::conn::ConnectionInfos;
@@ -145,7 +146,7 @@ pub struct GlobalImpl {
 }
 
 impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
-    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool) -> Result<(), CommonError> {
+    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool, app_config: AppConfig) -> Result<(), CommonError> {
         if self.once.load(Ordering::Relaxed) == true {
             return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
         }
@@ -155,7 +156,14 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
 
         let new_loader : Box<dyn ConfLoader> = match loader_type.as_str() {
             constant::LOADER_TYPE_DB => {
-                pair_db_loader::rdb_pair_db_loader::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load).map(|l| {
+                pair_db_loader::rdb::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load, false).map(|l| {
+                    Box::new(l) as Box<dyn ConfLoader>
+                }).map_err(|e| {
+                    CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
+                })
+            },
+            constant::LOADER_TYPE_DB_TOML => {
+                pair_db_loader::rdb::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load, true).map(|l| {
                     Box::new(l) as Box<dyn ConfLoader>
                 }).map_err(|e| {
                     CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
@@ -173,8 +181,6 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
         let loader =self.loader.get_or_init(move || {
             new_loader
         });
-
-        let app_config = loader.load_app_config()?;
 
         common_rs::init::init_common(InitConfig {
             log_level: app_config.log_level.as_str(),

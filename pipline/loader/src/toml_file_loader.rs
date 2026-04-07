@@ -121,25 +121,4 @@ impl ConfLoader for TomlFileConfLoader {
         
         Ok(map)
     }
-
-    fn load_app_config(&self) -> Result<AppConfig, CommonError> {
-        let ret : Result<AppConfig, CommonError> = if self.is_once_load {
-            let c = self.once_cache.2.get();
-            if c.is_none() {
-                let data = self.read_data("app.toml".to_string())?;
-                let root : AppConfig = self.parsing_data(data.as_str())?;
-                let _ = self.once_cache.2.set(root.clone());
-                Ok(root)
-            } else {
-                Ok(c.unwrap().clone())
-            }
-        }
-        else {
-            let data = self.read_data("app.toml".to_string())?;
-            let root : AppConfig = self.parsing_data(data.as_str())?;
-            Ok(root)
-        };
-
-        ret
-    }
 }
