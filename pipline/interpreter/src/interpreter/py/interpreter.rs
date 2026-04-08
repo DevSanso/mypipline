@@ -69,7 +69,7 @@ impl PyInterpreterInitialization {
         Python::attach(|py| {
             let g = crate::global::GLOBAL_REFER.get().expect("global refer get is broken");
 
-            if let Ok(py_add_path) = g.get_script_lib_path() {
+            if let Ok(Some(py_add_path)) = g.get_script_lib_path() {
                 let sys = py.import("sys");
                 if sys.is_err() {
                     let panic_err = CommonError::new(&CommonDefaultErrorKind::Critical, sys.err().unwrap().to_string());

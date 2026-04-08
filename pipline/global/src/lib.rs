@@ -2,9 +2,7 @@ pub mod constant;
 mod etc;
 
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::{LazyLock, OnceLock};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +16,7 @@ use common_rs::exec::redis::create_redis_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
 use common_rs::exec::odbc::create_odbc_pair_conn_pool;
 use common_rs::init::InitConfig;
-use mypip_loader::toml_file_loader;
+use mypip_loader::{toml_file_loader, pair_db_loader};
 use mypip_types::config::app::AppConfig;
 use mypip_types::interface::ConfLoader;
 use mypip_types::typealias::InterpreterPool;
@@ -137,11 +135,6 @@ impl GlobalStore {
 }
 
 pub struct GlobalOnceLockStore {
-    identifier : String,
-    base_dir : String,
-    config_dir: String,
-    log_dir    : String,
-    script_dir : String,
     script_lib_base_dir: Option<String>,
 }
 pub struct GlobalImpl {
@@ -150,6 +143,86 @@ pub struct GlobalImpl {
     once : AtomicBool,
 
     once_store : OnceLock<GlobalOnceLockStore>,
+}
+
+impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
+    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool, app_config: AppConfig) -> Result<(), CommonError> {
+        if self.once.load(Ordering::Relaxed) == true {
+            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
+        }
+        let config_dir = std::path::Path::new(&base_dir).join("config").join(identifier.as_str()).to_string_lossy().to_string();
+        let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier.as_str()).to_string_lossy().to_string();
+        let script_dir = std::path::Path::new(&base_dir).join("scripts").join(identifier.as_str()).to_string_lossy().to_string();
+
+        let new_loader : Box<dyn ConfLoader> = match loader_type.as_str() {
+            constant::LOADER_TYPE_DB => {
+                pair_db_loader::rdb::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load, false).map(|l| {
+                    Box::new(l) as Box<dyn ConfLoader>
+                }).map_err(|e| {
+                    CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
+                })
+            },
+            constant::LOADER_TYPE_DB_TOML => {
+                pair_db_loader::rdb::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load, true).map(|l| {
+                    Box::new(l) as Box<dyn ConfLoader>
+                }).map_err(|e| {
+                    CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
+                })
+            },
+            constant::LOADER_TYPE_FILE => {
+                let ok : Result<Box<dyn ConfLoader>, CommonError> = Ok(Box::new(toml_file_loader::TomlFileConfLoader::new(config_dir, script_dir, identifier.clone(), once_conf_load)) as Box<dyn ConfLoader>);
+                ok
+            },
+            _ => {
+                CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", loader_type)).to_result::<Box<dyn ConfLoader>, CommonError>()
+            }
+        }?;
+        
+        let loader =self.loader.get_or_init(move || {
+            new_loader
+        });
+
+        common_rs::init::init_common(InitConfig {
+            log_level: app_config.log_level.as_str(),
+            log_file: if app_config.log_type == "console" {
+                None
+            } else {
+                Some(log_dir.as_str())
+            },
+            log_file_size : (app_config.log_max_size_mb as usize * 1024 * 1024),
+        })?;
+
+        self.once_store.get_or_init(move || {
+            GlobalOnceLockStore {
+                script_lib_base_dir : app_config.script_lib
+            }
+        });
+
+        let mut writer = self.store.write().map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+
+        let mut store = GlobalStore {
+            exec_pool_map: HashMap::new(),
+            exec_interpreter_map : HashMap::new(),
+            plans : PlanRoot::default(),
+            script_data_map: HashMap::new(),
+        };
+
+        store.reset(loader.as_ref())?;
+        mypip_interpreter::init::interpreter_init(self).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::Critical, "interpreter init failed", e)
+        })?;
+
+        store.exec_interpreter_map.insert("lua", crate::etc::create_interpreter_pool(LUA,100));
+        store.exec_interpreter_map.insert("python", crate::etc::create_interpreter_pool(PYTHON, 100));
+
+        *writer = store;
+
+        self.once.store(true, Ordering::Relaxed);
+
+        Ok(())
+    }
 }
 
 impl mypip_types::interface::GlobalLayout for GlobalImpl {
@@ -224,73 +297,6 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
 
         Ok(())
     }
-
-    fn initialize(&'static self, identifier : String, base_dir : String) -> Result<(), CommonError> {
-        if self.once.load(Ordering::Relaxed) == true {
-            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
-        }
-        let config_dir = std::path::Path::new(&base_dir).join("config").join(identifier.as_str()).to_string_lossy().to_string();
-        let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier.as_str()).to_string_lossy().to_string();
-        let script_dir = std::path::Path::new(&base_dir).join("scripts").join(identifier.as_str()).to_string_lossy().to_string();
-        
-        let loader_config_dir = config_dir.clone();
-        let loader_script_dir = script_dir.clone();
-        let loader_identifier = identifier.clone();
-        let loader =self.loader.get_or_init(move || {
-            let loader = toml_file_loader
-            ::TomlFileConfLoader::new(loader_config_dir, loader_script_dir, loader_identifier, true);
-            Box::new(loader)
-        });
-        
-        let app_config = loader.load_app_config()?;
-
-        common_rs::init::init_common(InitConfig {
-            log_level: app_config.log_level.as_str(),
-            log_file: if app_config.log_type == "console" {
-                None
-            } else {
-                Some(log_dir.as_str())
-            },
-            log_file_size : (app_config.log_max_size_mb as usize * 1024 * 1024),
-        })?;
-
-        self.once_store.get_or_init(move || {
-           GlobalOnceLockStore {
-               identifier,
-               base_dir,
-               config_dir,
-               log_dir,
-               script_dir,
-               script_lib_base_dir : app_config.script_lib
-           }
-        });
-
-        let mut writer = self.store.write().map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
-        })?;
-
-        let mut store = GlobalStore {
-            exec_pool_map: HashMap::new(),
-            exec_interpreter_map : HashMap::new(),
-            plans : PlanRoot::default(),
-            script_data_map: HashMap::new(),
-        };
-
-        store.reset(loader.as_ref())?;
-        mypip_interpreter::init::interpreter_init(self).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::Critical, "interpreter init failed", e)
-        })?;
-        
-        store.exec_interpreter_map.insert("lua", crate::etc::create_interpreter_pool(LUA,100));
-        store.exec_interpreter_map.insert("python", crate::etc::create_interpreter_pool(PYTHON, 100));
-
-        *writer = store;
-
-        self.once.store(true, Ordering::Relaxed);
-
-        Ok(())
-    }
-
     fn get_script_data(&'static self, name: &'_ str) -> Result<String, CommonError> {
         let reader = self.store.read().map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
@@ -303,24 +309,15 @@ impl mypip_types::interface::GlobalLayout for GlobalImpl {
         }
     }
     
-    fn get_script_lib_path(&'static self) -> Result<String, CommonError> {
+    fn get_script_lib_path(&'static self) -> Result<Option<String>, CommonError> {
         let s = match self.once_store.get() {
             None => {
                 return CommonError::new(&CommonDefaultErrorKind::Critical, "global once store not init").to_result();
             }
             Some(s) => {s}
         };
-        
-        if let Some(dir) = s.script_lib_base_dir.clone() {
-            Ok(dir)    
-        } 
-        else {
-            let mut buffer = PathBuf::new();
-            buffer.push(s.script_dir.clone());
-            buffer.push("lib");
-            Ok(buffer.to_string_lossy().to_string())
-        }
-       
+
+        Ok(s.script_lib_base_dir.clone())
     }
 }
 

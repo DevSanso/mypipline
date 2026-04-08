@@ -14,8 +14,9 @@ use common_rs::logger::log_info;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proc_args = args::parsing();
+    let app_config = args::load_app_config(proc_args.base_dir.as_str())?;
     
-    GLOBAL.initialize(proc_args.identifier, proc_args.base_dir)?;
+    GLOBAL.initialize(proc_args.identifier, proc_args.base_dir, proc_args.loader_type, proc_args.once_conf_load, app_config)?;
 
     let mut cancel = PlanThreadExecutor::daemon();
 

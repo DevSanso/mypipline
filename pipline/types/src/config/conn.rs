@@ -30,7 +30,7 @@ pub struct ConnectionInfo {
     pub odbc : Option<OdbcConnectionInfo>
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ConnectionInfos {
     pub connection: HashMap<String, ConnectionInfo>
 }

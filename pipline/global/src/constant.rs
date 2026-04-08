@@ -4,3 +4,6 @@ pub const CONN_TYPE_DUCKDB : &'static str = "duckdb";
 pub const CONN_TYPE_REDIS : &'static str = "redis";
 pub const CONN_TYPE_ODBC : &'static str = "odbc";
 pub const PLAN_TYPE_SCRIPT : &'static str = "script";
+pub const LOADER_TYPE_FILE : &'static str = "file";
+pub const LOADER_TYPE_DB : &'static str = "db";
+pub const LOADER_TYPE_DB_TOML : &'static str = "db_toml";

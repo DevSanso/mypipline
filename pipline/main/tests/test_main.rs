@@ -9,11 +9,18 @@ use mypip_global::GLOBAL;
 use mypip_thread::PlanThreadExecutor;
 
 use common_rs::logger::log_info;
+use mypip_types::config::app::AppConfig;
 
 #[test]
 fn test_main() -> Result<(), Box<dyn std::error::Error>> {
     let base_dir = env!("CARGO_MANIFEST_DIR").to_owned() + "/tests/assets";
-    GLOBAL.initialize("test".to_string(), base_dir)?;
+    GLOBAL.initialize("test".to_string(), base_dir, "file".to_string(), true, AppConfig {
+        log_level: "debug".to_string(),
+        log_max_size_mb: 200,
+        log_type: "console".to_string(),
+        script_lib: None,
+        db_config: None,
+    })?;
 
     let mut cancel = PlanThreadExecutor::daemon();
 
