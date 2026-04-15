@@ -26,7 +26,6 @@ macro_rules! get_pair_db_connection {
 pub struct PairDbLoader {
     identifier : String,
     db_pool : PairExecutorPool,
-    app_config: AppConfig,
     is_toml : bool,
     plan_query : &'static str,
     conn_query : &'static str,
@@ -59,7 +58,7 @@ impl PairDbLoader {
 
         let db_conf = convert.db_config.as_ref().expect("db_config is broken");
         let conn_info = PairExecutorInfo {
-            addr: db_conf.db_address.clone(),
+            addr: vec![db_conf.db_address.clone()],
             name: db_conf.db_name.clone(),
             user: db_conf.db_user.clone(),
             password: db_conf.db_password.clone(),
@@ -88,7 +87,6 @@ impl PairDbLoader {
         Ok(PairDbLoader {
             identifier,
             db_pool : p,
-            app_config : convert,
             once_init_flag : load_once,
             is_toml,
             plan_query,
@@ -227,7 +225,7 @@ impl PairDbLoader {
                             CommonError::new(&CommonDefaultErrorKind::NoData, "").to_result(), |x| { Ok(x) })?.clone();
                         current_chain = Some(temp_chain);
                     }
-                    let current_c = current_chain.as_mut().expect("get failed current_chain");;
+                    let current_c = current_chain.as_mut().expect("get failed current_chain");
 
                     if mapping_type[idx].expect("broken current mapping type") == "args" {
                         if current_c.args.is_none() {
@@ -356,7 +354,10 @@ impl ConfLoader for PairDbLoader {
                 conn_type: conn_type[idx].clone(),
                 conn_name: conn_name[idx].clone(),
                 conn_user: conn_user[idx].clone(),
-                conn_addr: conn_addr[idx].clone(),
+                conn_addr: conn_addr[idx].split(|x| {x == ','}).fold(Vec::new(), |mut acc,x| {
+                    acc.push(x.to_string());
+                    acc
+                }),
                 conn_passwd: conn_passwd[idx].clone(),
                 conn_timeout: *conn_timeout[idx] as u32,
                 odbc: if conn_type[idx] == "odbc" {

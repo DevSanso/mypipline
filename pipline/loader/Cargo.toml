@@ -9,12 +9,12 @@ resolver = "2"
 toml = "0.8.19"
 serde_json = "1.0.149"
 serde = { version = "1.0.219", features = ["derive"]  }
-common_rs = {git = "https://github.com/DevSanso/common_rs", tag="v0.1.3"}
+common_rs = {git = "https://github.com/DevSanso/common_rs", branch = "master"}
 mypip_types = {path = "../types"}
 
 [dev-dependencies]
 mypip_loader = {path = "../loader"}
-common_rs = {git = "https://github.com/DevSanso/common_rs" , tag="v0.1.3"}
+common_rs = {git = "https://github.com/DevSanso/common_rs" , branch = "master"}
 
 [[test]]
 name = "test_loader"

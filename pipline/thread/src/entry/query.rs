@@ -213,10 +213,10 @@ impl<'a> QueryEntry<'a> {
 
         data_map.insert(self.chain[0].id.clone(), first_data);
 
-        log_debug!("try running, name={} first success", self.chain[0].id.as_str());
+        log_debug!(self.plan_name, "try running, name={} first success", self.chain[0].id.as_str());
 
         for item in self.chain.iter().skip(1) {
-            log_debug!("try running, query={}", item.query.as_str());
+            log_debug!(self.plan_name, "try running, query={}", item.query.as_str());
 
             let ret : PairValueEnum = if let Some(_) = &item.bind {
                 let mut bind_ret = PairValueEnum::Null;

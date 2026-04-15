@@ -91,7 +91,7 @@ impl PlanThreadExecutor {
                 .exist(k)
                 .map_err(|e| CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "", e));
             if is_run.is_err() {
-                log_error!("{}", is_run.err().unwrap());
+                log_error!("thread_executor", "{}", is_run.err().unwrap());
                 continue;
             }
 
@@ -135,7 +135,7 @@ impl PlanThreadExecutor {
             })?;
 
             for p in run_plan {
-                log_debug!("{} - try start plan {}", func!(), p);
+                log_debug!("thread_executor", "start plan : {}", p);
                 let signal = self.signal_map.create(p.as_str()).map_err(|e| {
                     CommonError::extend(&CommonDefaultErrorKind::Etc, "create signal failed", e)
                 })?;
@@ -149,7 +149,7 @@ impl PlanThreadExecutor {
 
                 if let Err(e) = self.manager.execute("".to_string(), &plan_thread_fn, entry) {
                     let log = CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "executor failed", e);
-                    log_error!("{}", log);
+                    log_error!("thread_executor", "{}", log);
                 }
             }
         }
@@ -169,9 +169,9 @@ impl PlanThreadExecutor {
         let join = std::thread::spawn( move || {
             let stop_ret = daemon_exec.start_loop();
             if stop_ret.is_err() {
-                log_error!("{}", stop_ret.err().unwrap());
+                log_error!("thread_executor", "{}", stop_ret.err().unwrap());
             }
-            log_info!("stop daemon");
+            log_info!("thread_executor", "stop daemon");
         });
 
         PlanThreadExecutorCancel {exec, join_handle: Some(join)}
