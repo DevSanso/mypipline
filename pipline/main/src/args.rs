@@ -22,7 +22,7 @@ pub fn parsing() -> Args {
 }
 
 pub(crate) fn load_app_config(base_dir : &'_ str) -> Result<AppConfig, CommonError> {
-    let conf_path = PathBuf::from(base_dir).join("config").join("app.conf");
+    let conf_path = PathBuf::from(base_dir).join("config").join("app.toml");
     let data = fs::read_to_string(conf_path).map_err(|e| {
         CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
     })?;

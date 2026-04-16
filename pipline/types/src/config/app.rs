@@ -19,8 +19,8 @@ pub struct AppLogConfig {
     pub log_level : String,
     #[serde(alias = "log_file_size_mb")]
     pub log_file_size_mb : Option<u64>,
-    #[serde(alias = "log_scylla_config")]
-    pub log_scylla_config : Option<AppDbConnectionConfig>
+    #[serde(alias = "log_db_config")]
+    pub log_db_config: Option<AppDbConnectionConfig>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

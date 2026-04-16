@@ -19,7 +19,7 @@ fn test_main() -> Result<(), Box<dyn std::error::Error>> {
             log_type: "console".to_string(),
             log_level: "trace".to_string(),
             log_file_size_mb: None,
-            log_scylla_config: None,
+            log_db_config: None,
         },
         script_lib: None,
         db_config: None,

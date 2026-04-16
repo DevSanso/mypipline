@@ -192,12 +192,12 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
                         CommonError::new(&CommonDefaultErrorKind::NoData, "no file size config").to_result()
                     },
                     |o| {
-                        Ok(LoggerConf::File("".to_string(), convert_str_to_log_level(app_config.log_conf.log_level.as_str()), o * 1024 * 1024))
+                        Ok(LoggerConf::File(log_dir, convert_str_to_log_level(app_config.log_conf.log_level.as_str()), o * 1024 * 1024))
                     }
                 )
             },
             "scylla" => {
-                app_config.log_conf.log_scylla_config.map_or_else(
+                app_config.log_conf.log_db_config.map_or_else(
                     || {
                         CommonError::new(&CommonDefaultErrorKind::NoData, "no db config").to_result()
                     },
