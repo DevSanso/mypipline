@@ -20,7 +20,7 @@ pub struct ConnectionInfo {
     #[serde(alias = "user")]
     pub conn_user : String,
     #[serde(alias = "addr")]
-    pub conn_addr : String,
+    pub conn_addr : Vec<String>,
     #[serde(alias = "password")]
     pub conn_passwd : String,
     #[serde(alias = "timeout")]

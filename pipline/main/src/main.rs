@@ -22,9 +22,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         if common_rs::signal::is_set_signal(common_rs::signal::SIGINT) {
-            log_info!("stop main loop");
+            log_info!("main", "stop main loop");
             cancel.cancel();
-            log_info!("stop daemon thread");
+            log_info!("main", "stop daemon thread");
             break;
         }
 

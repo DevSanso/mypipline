@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime};
 use common_rs::c_core::func;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
+use common_rs::log_trace;
 use common_rs::logger::{log_debug, log_error};
 use mypip_global::GLOBAL;
 use query::QueryEntry;
@@ -74,15 +75,15 @@ fn plan_thread_sleep(interval : &PlanInterval) -> Result<(), CommonError> {
 
 pub fn plan_thread_fn(entry : PlanThreadEntry) {
     let sig = entry.signal.clone();
-    log_debug!("{:?} - start plan thread {}", std::thread::current().id(), entry.name);
+    log_debug!(entry.name.as_str(), "starting plan thread");
 
     loop {
         if sig.get_kill() {
-            log_debug!("{} - {} chk kill signal", func!(), entry.name);
+            log_debug!(entry.name.as_str(), "kill signal");
             if let Err(w) = entry.run_state.delete(&entry.name) {
                 let panic_msg = CommonError::extend(&CommonDefaultErrorKind::Critical, "thread state b", w);
-                log_error!("panic");
-                log_error!("{}", panic_msg);
+                log_error!(entry.name.as_str(), "panic");
+                log_error!(entry.name.as_str(), "{}", panic_msg);
                 panic!("{}", panic_msg);
             }
             break;
@@ -90,12 +91,27 @@ pub fn plan_thread_fn(entry : PlanThreadEntry) {
 
         let sleep = plan_thread_sleep(&entry.plan.interval);
         if sleep.is_err() {
-            log_error!("{}", sleep.err().unwrap());
+            log_error!(entry.name.as_str(), "{}", sleep.err().unwrap());
             break;
         }
-        log_debug!("{:?} - entry start {}", std::thread::current().id(), entry.name);
-        if  let Err(e) = entry.run() {
-            log_error!("{}", e.to_string());
+        log_debug!(entry.name.as_str(), "entry start");
+
+        let start = SystemTime::now();
+        let entry_ret =  entry.run();
+
+        let epel = SystemTime::now().duration_since(start).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        });
+
+        if epel.is_err() {
+            log_error!(entry.name.as_str(), "{}", epel.err().unwrap());
+            break;
+        }
+
+        log_trace!(entry.name.as_str(), "entry.epel_ms", epel.unwrap().as_millis() as f64);
+
+        if  let Err(e) = entry_ret {
+            log_error!(entry.name.as_str(), "{}", e.to_string());
             break;
         }
     }

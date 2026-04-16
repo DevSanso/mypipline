@@ -15,7 +15,7 @@ use common_rs::exec::pg::create_pg_pair_conn_pool;
 use common_rs::exec::redis::create_redis_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
 use common_rs::exec::odbc::create_odbc_pair_conn_pool;
-use common_rs::init::InitConfig;
+use common_rs::init::{InitConfig, LoggerConf, convert_str_to_log_level};
 use mypip_loader::{toml_file_loader, pair_db_loader};
 use mypip_types::config::app::AppConfig;
 use mypip_types::interface::ConfLoader;
@@ -53,14 +53,14 @@ impl GlobalStore {
                     timeout_sec: conn_info.conn_timeout,
                     extend : None
                 }, conn_info.max_size)),
-                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_pair_conn_pool(conn_info.conn_name.clone(), vec![PairExecutorInfo {
+                constant::CONN_TYPE_SCYLLA => Ok(create_scylla_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
                     addr: conn_info.conn_addr,
                     name: conn_info.conn_name,
                     user: conn_info.conn_user,
                     password: conn_info.conn_passwd,
                     timeout_sec: conn_info.conn_timeout,
                     extend : None
-                }], conn_info.max_size)),
+                }, conn_info.max_size)),
                 constant::CONN_TYPE_DUCKDB => Ok(create_duckdb_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
                     addr: conn_info.conn_addr,
                     name: conn_info.conn_name,
@@ -78,13 +78,13 @@ impl GlobalStore {
                     extend : None
                 }, conn_info.max_size)),
                 constant::CONN_TYPE_ODBC => Ok(create_odbc_pair_conn_pool(conn_info.conn_name.clone(), PairExecutorInfo {
-                    addr: String::from(""),
+                    addr: vec![],
                     name: String::from(""),
                     user: String::from(""),
                     password: String::from(""),
                     timeout_sec: conn_info.conn_timeout,
                     extend : if let Some(odbc_info) = conn_info.odbc {
-                        let  addr : Vec<&'_ str> = conn_info.conn_addr.split(":").collect();
+                        let  addr : Vec<&'_ str> = conn_info.conn_addr[0].split(":").collect();
                         if addr.len() < 2 {
                             return CommonError::new(&CommonDefaultErrorKind::NoData, "ODBC addr split count <2 ").to_result();
                         }
@@ -181,15 +181,41 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
         let loader =self.loader.get_or_init(move || {
             new_loader
         });
-
-        common_rs::init::init_common(InitConfig {
-            log_level: app_config.log_level.as_str(),
-            log_file: if app_config.log_type == "console" {
-                None
-            } else {
-                Some(log_dir.as_str())
+        
+        let logger_cnf = match app_config.log_conf.log_type.as_str() {
+            "console" => {
+                Ok(LoggerConf::Console)
             },
-            log_file_size : (app_config.log_max_size_mb as usize * 1024 * 1024),
+            "file" => {
+                app_config.log_conf.log_file_size_mb.map_or_else(
+                    || {
+                        CommonError::new(&CommonDefaultErrorKind::NoData, "no file size config").to_result()
+                    },
+                    |o| {
+                        Ok(LoggerConf::File(log_dir, convert_str_to_log_level(app_config.log_conf.log_level.as_str()), o * 1024 * 1024))
+                    }
+                )
+            },
+            "scylla" => {
+                app_config.log_conf.log_db_config.map_or_else(
+                    || {
+                        CommonError::new(&CommonDefaultErrorKind::NoData, "no db config").to_result()
+                    },
+                    |o| {
+                        Ok(
+                            LoggerConf::Scylla(identifier.clone(), o.db_address, o.db_name, o.db_user, o.db_password,
+                                               convert_str_to_log_level(app_config.log_conf.log_level.as_str()), o.db_ttl)
+                        )
+                    }
+                )
+            },
+            _ => {
+                CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", loader_type)).to_result()
+            }
+        }?;
+  
+        common_rs::init::init_common(InitConfig {
+            logger_conf : logger_cnf
         })?;
 
         self.once_store.get_or_init(move || {
