@@ -145,48 +145,50 @@ pub struct GlobalImpl {
     once_store : OnceLock<GlobalOnceLockStore>,
 }
 
-impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
-    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool, app_config: AppConfig) -> Result<(), CommonError> {
-        if self.once.load(Ordering::Relaxed) == true {
-            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
-        }
-        let config_dir = std::path::Path::new(&base_dir).join("config").join(identifier.as_str()).to_string_lossy().to_string();
-        let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier.as_str()).to_string_lossy().to_string();
-        let script_dir = std::path::Path::new(&base_dir).join("scripts").join(identifier.as_str()).to_string_lossy().to_string();
-
-        let new_loader : Box<dyn ConfLoader> = match loader_type.as_str() {
+impl GlobalImpl {
+    fn init_loader(&'static self, identifier: &'_ str, loader_type : &'_ str, base_dir : &'_ str, once_conf_load : bool, app_config: &'_ AppConfig) -> Result<(), CommonError> {
+        let config_dir = std::path::Path::new(&base_dir).join("config").join(identifier).to_string_lossy().to_string();
+        let script_dir = std::path::Path::new(&base_dir).join("scripts").join(identifier).to_string_lossy().to_string();
+        
+        let new_loader : Box<dyn ConfLoader> = match loader_type {
             constant::LOADER_TYPE_DB => {
-                pair_db_loader::rdb::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load, false).map(|l| {
+                pair_db_loader::rdb::PairDbLoader::new(identifier.to_string(), &app_config, once_conf_load, false).map(|l| {
                     Box::new(l) as Box<dyn ConfLoader>
                 }).map_err(|e| {
                     CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
                 })
             },
             constant::LOADER_TYPE_DB_TOML => {
-                pair_db_loader::rdb::PairDbLoader::new(identifier.clone(), config_dir.as_str(), once_conf_load, true).map(|l| {
+                pair_db_loader::rdb::PairDbLoader::new(identifier.to_string(),  &app_config, once_conf_load, true).map(|l| {
                     Box::new(l) as Box<dyn ConfLoader>
                 }).map_err(|e| {
                     CommonError::extend(&CommonDefaultErrorKind::Etc, "", e)
                 })
             },
             constant::LOADER_TYPE_FILE => {
-                let ok : Result<Box<dyn ConfLoader>, CommonError> = Ok(Box::new(toml_file_loader::TomlFileConfLoader::new(config_dir, script_dir, identifier.clone(), once_conf_load)) as Box<dyn ConfLoader>);
+                let ok : Result<Box<dyn ConfLoader>, CommonError> = Ok(Box::new(toml_file_loader::TomlFileConfLoader::new(config_dir, script_dir, identifier.to_string(), once_conf_load)) as Box<dyn ConfLoader>);
                 ok
             },
             _ => {
                 CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", loader_type)).to_result::<Box<dyn ConfLoader>, CommonError>()
             }
         }?;
-        
-        let loader =self.loader.get_or_init(move || {
+
+        self.loader.get_or_init(move || {
             new_loader
         });
         
+        Ok(())
+    }
+    
+    fn create_comm_conf(&'static self,identifier: &'_ str, base_dir : &'_ str, app_config: &'_ AppConfig) -> Result<InitConfig, CommonError> {
+        let log_dir = std::path::Path::new(&base_dir).join("log").join(identifier).to_string_lossy().to_string();
+
         let logger_cnf = match app_config.log_conf.log_type.as_str() {
-            "console" => {
+            constant::LOGGER_TYPE_CONSOLE => {
                 Ok(LoggerConf::Console)
             },
-            "file" => {
+            constant::LOGGER_TYPE_FILE => {
                 app_config.log_conf.log_file_size_mb.map_or_else(
                     || {
                         CommonError::new(&CommonDefaultErrorKind::NoData, "no file size config").to_result()
@@ -196,26 +198,48 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
                     }
                 )
             },
-            "scylla" => {
-                app_config.log_conf.log_db_config.map_or_else(
+            constant::LOGGER_TYPE_DB => {
+                app_config.log_conf.log_db_config.as_ref().map_or_else(
                     || {
                         CommonError::new(&CommonDefaultErrorKind::NoData, "no db config").to_result()
                     },
                     |o| {
-                        Ok(
-                            LoggerConf::Scylla(identifier.clone(), o.db_address, o.db_name, o.db_user, o.db_password,
-                                               convert_str_to_log_level(app_config.log_conf.log_level.as_str()), o.db_ttl)
-                        )
+                        if o.db_type != "scylla" {
+                            CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("logger type not support: {}", o.db_type)).to_result()
+                        } else {
+                            Ok(
+                                LoggerConf::Scylla(identifier.to_string(), o.db_address.clone(), o.db_name.clone(), o.db_user.clone(), o.db_password.clone(),
+                                                   convert_str_to_log_level(app_config.log_conf.log_level.as_str()), o.db_ttl.map_or(0, |v| v))
+                            )
+                        }
                     }
                 )
             },
             _ => {
-                CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", loader_type)).to_result()
+                CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support logger {}", app_config.log_conf.log_type.as_str())).to_result()
             }
         }?;
-  
-        common_rs::init::init_common(InitConfig {
+        
+        Ok(InitConfig {
             logger_conf : logger_cnf
+        })
+    }
+}
+
+impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
+    fn initialize(&'static self, identifier : String, base_dir : String, loader_type : String, once_conf_load : bool, app_config: AppConfig) -> Result<(), CommonError> {
+        if self.once.load(Ordering::Relaxed) == true {
+            return CommonError::new(&CommonDefaultErrorKind::InvalidApiCall, "already initialized").to_result();
+        }
+        
+        self.init_loader(identifier.as_str(), loader_type.as_str(), base_dir.as_str(), once_conf_load, &app_config).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::InitFailed, "loader failed", e)
+        })?;
+        
+        common_rs::init::init_common(self.create_comm_conf(identifier.as_str(), base_dir.as_str(), &app_config).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::InitFailed, "create common config failed", e)
+        })?).map_err(|e| {
+            CommonError::extend(&CommonDefaultErrorKind::InitFailed, "common init failed", e)
         })?;
 
         self.once_store.get_or_init(move || {
@@ -235,7 +259,7 @@ impl mypip_types::interface::GlobalLayoutInit for GlobalImpl {
             script_data_map: HashMap::new(),
         };
 
-        store.reset(loader.as_ref())?;
+        store.reset(self.loader.get().expect("loader was not initialized").as_ref())?;
         mypip_interpreter::init::interpreter_init(self).map_err(|e| {
             CommonError::extend(&CommonDefaultErrorKind::Critical, "interpreter init failed", e)
         })?;

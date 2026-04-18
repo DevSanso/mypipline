@@ -78,7 +78,7 @@ select
 	conn_user,
 	conn_addr,
 	conn_passwd,
-	conn_timeout,
+	conn_timeout::int4,
 	odbc_driver,
 	odbc_current_time_query,
 	odbc_current_time_col_name
@@ -108,7 +108,7 @@ macro_rules! vec_if_same_len {
     ($($vec:expr),+) => {{
         let lengths = vec![$($vec.len()),+];
         let first = lengths[0];
-        if !lengths.iter().all(|&l| l == first) {
+        if lengths.iter().all(|&l| l == first) {
             true
         } else {
             false
@@ -117,178 +117,63 @@ macro_rules! vec_if_same_len {
 }
 
 macro_rules! get_col_ref {
-    ($col:expr, $data:expr, str) => {
-        $crate::pair_db_loader::utils::get_col_ref_str($col, $data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, $col, e)
-        })
-    };
+    ($col:expr, $data:expr, $input:ident) => {
+        {
+            use common_rs::exec::interfaces::pair::PairValueEnum;
 
-    ($col:expr, $data:expr, i64) => {
-        $crate::pair_db_loader::utils::get_col_ref_i64($col, $data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, $col, e)
-        })
-    };
-
-    ($col:expr, $data:expr, i32) => {
-        $crate::pair_db_loader::utils::get_col_ref_i32($col, $data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, $col, e)
-        })
-    };
-
-    ($col:expr, $data:expr, str, null) => {
-        $crate::pair_db_loader::utils::get_col_ref_str_null($col, $data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, $col, e)
-        })
-    };
-
-    ($col:expr, $data:expr, i64, null) => {
-        $crate::pair_db_loader::utils::get_col_ref_i64_null($col, $data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, $col, e)
-        })
-    };
-
-    ($col:expr, $data:expr, i32, null) => {
-        $crate::pair_db_loader::utils::get_col_ref_i32_null($col, $data).map_err(|e| {
-            CommonError::extend(&CommonDefaultErrorKind::ParsingFail, $col, e)
-        })
-    };
-}
-
-pub(crate) fn get_col_ref_str<'a>(col:  &'a str, data :  &'a PairValueEnum) -> Result<Vec<&'a String>, CommonError> {
-    if let PairValueEnum::Map(map) = data {
-        if let Some(PairValueEnum::Array(vec)) = map.get(col) {
-            let mut res = Vec::with_capacity(vec.len());
-            for r in vec {
-                if let PairValueEnum::String(s) = r {
-                    res.push(s)
-                } else {
-                    return CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("str != {:?}", r)).to_result()
-                }
-            }
-            Ok(res)
-        } else {
-            CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("array != {:?}", data)).to_result()
-        }
-    } else {
-        CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", data)).to_result()
-    }
-}
-
-pub(crate) fn get_col_ref_i32<'a>(col:  &'a str, data :  &'a PairValueEnum) -> Result<Vec<&'a i32>, CommonError> {
-    if let PairValueEnum::Map(map) = data {
-        if let Some(PairValueEnum::Array(vec)) = map.get(col) {
-            let mut res = Vec::with_capacity(vec.len());
-            for r in vec {
-                if let PairValueEnum::Int(s) = r {
-                    res.push(s)
-                } else {
-                    return CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("str != {:?}", r)).to_result()
-                }
-            }
-            Ok(res)
-        } else {
-            CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("i32 != {:?}", data)).to_result()
-        }
-    } else {
-        CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", data)).to_result()
-    }
-}
-
-pub(crate) fn get_col_ref_i64<'a>(col:  &'a str, data :  &'a PairValueEnum) -> Result<Vec<&'a i64>, CommonError> {
-    if let PairValueEnum::Map(map) = data {
-        if let Some(PairValueEnum::Array(vec)) = map.get(col) {
-            let mut res = Vec::with_capacity(vec.len());
-            for r in vec {
-                if let PairValueEnum::BigInt(s) = r {
-                    res.push(s)
-                } else {
-                    return CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("i64 != {:?}", r)).to_result()
-                }
-            }
-            Ok(res)
-        } else {
-            CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("array != {:?}", data)).to_result()
-        }
-    } else {
-        CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", data)).to_result()
-    }
-}
-
-pub(crate) fn get_col_ref_str_null<'a>(col:  &'a str, data :  &'a PairValueEnum) -> Result<Vec<Option<&'a String>>, CommonError> {
-    if let PairValueEnum::Map(map) = data {
-        if let Some(PairValueEnum::Array(vec)) = map.get(col) {
-            let mut res = Vec::with_capacity(vec.len());
-            for r in vec {
-                match r {
-                    PairValueEnum::String(s) => {
-                        res.push(Some(s))
-                    },
-                    PairValueEnum::Null => {
-                        res.push(None)
-                    },
-                    _ => {
-                        return CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("str != {:?}", r)).to_result()
+            if let PairValueEnum::Map(map) = $data {
+                if let Some(PairValueEnum::Array(vec)) = map.get($col) {
+                    let mut res = Vec::with_capacity(vec.len());
+                    let mut opt = None;
+                    for r in vec {
+                        if let PairValueEnum::$input(s) = r {
+                            res.push(s)
+                        } else {
+                            opt = Some(Err(CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("{} != {:?}",stringify!($input),  r))));
+                            break;
+                        }
                     }
-                }
-            }
-            Ok(res)
-        } else {
-            CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("array != {:?}", data)).to_result()
-        }
-    } else {
-        CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", data)).to_result()
-    }
-}
-
-pub(crate) fn get_col_ref_i32_null<'a>(col:  &'a str, data :  &'a PairValueEnum) -> Result<Vec<Option<&'a i32>>, CommonError> {
-    if let PairValueEnum::Map(map) = data {
-        if let Some(PairValueEnum::Array(vec)) = map.get(col) {
-            let mut res = Vec::with_capacity(vec.len());
-            for r in vec {
-                match r {
-                    PairValueEnum::Int(s) => {
-                        res.push(Some(s))
-                    },
-                    PairValueEnum::Null => {
-                        res.push(None)
-                    },
-                    _ => {
-                        return CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("str != {:?}", r)).to_result()
+                    if let Some(opt) = opt {
+                        opt.unwrap()
+                    } else {
+                        Ok(res)
                     }
-                }
-            }
-            Ok(res)
-        } else {
-            CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("i32 != {:?}", data)).to_result()
-        }
-    } else {
-        CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", data)).to_result()
-    }
-}
 
-pub(crate) fn get_col_ref_i64_null<'a>(col:  &'a str, data :  &'a PairValueEnum) -> Result<Vec<Option<&'a i64>>, CommonError> {
-    if let PairValueEnum::Map(map) = data {
-        if let Some(PairValueEnum::Array(vec)) = map.get(col) {
-            let mut res = Vec::with_capacity(vec.len());
-            for r in vec {
-                match r {
-                    PairValueEnum::BigInt(s) => {
-                        res.push(Some(s))
-                    },
-                    PairValueEnum::Null => {
-                        res.push(None)
-                    },
-                    _ => {
-                        return CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("str != {:?}", r)).to_result()
-                    }
+                } else {
+                    Err(CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("array != {:?}", $data)))
                 }
+            } else if &PairValueEnum::Null == $data {
+                Ok(Vec::new())
+            } else {
+                Err(CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", $data)))
             }
-            Ok(res)
-        } else {
-            CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("array != {:?}", data)).to_result()
         }
-    } else {
-        CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", data)).to_result()
+    };
+
+    ($col:expr, $data:expr, $input:ident, NULL) => {
+        {
+            use common_rs::exec::interfaces::pair::PairValueEnum;
+
+            if let PairValueEnum::Map(map) = $data {
+            if let Some(PairValueEnum::Array(vec)) = map.get($col) {
+                    let mut res = Vec::with_capacity(vec.len());
+                    for r in vec {
+                        if let PairValueEnum::$input(s) = r {
+                            res.push(Some(s))
+                        } else {
+                            res.push(None)
+                        }
+                    }
+                    Ok(res)
+                } else {
+                    Err(CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("array != {:?}", $data)))
+                }
+            } else if &PairValueEnum::Null == $data {
+                Ok(Vec::new())
+            } else {
+                Err(CommonError::new(&CommonDefaultErrorKind::NotMatchArgs, format!("map != {:?}", $data)))
+            }
+        }
     }
 }
 
