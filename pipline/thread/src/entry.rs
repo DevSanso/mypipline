@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime};
 use common_rs::c_core::func;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
-use common_rs::log_trace;
+use common_rs::{log_info, log_trace};
 use common_rs::logger::{log_debug, log_error};
 use mypip_global::GLOBAL;
 use query::QueryEntry;
@@ -73,13 +73,13 @@ fn plan_thread_sleep(interval : &PlanInterval) -> Result<(), CommonError> {
     Ok(())
 }
 
-pub fn plan_thread_fn(entry : PlanThreadEntry) {
+pub fn plan_thread_startup_fn(entry : PlanThreadEntry) {
     let sig = entry.signal.clone();
     log_debug!(entry.name.as_str(), "starting plan thread");
 
     loop {
         if sig.get_kill() {
-            log_debug!(entry.name.as_str(), "kill signal");
+            log_info!(entry.name.as_str(), "kill signal get");
             if let Err(w) = entry.run_state.delete(&entry.name) {
                 let panic_msg = CommonError::extend(&CommonDefaultErrorKind::Critical, "thread state b", w);
                 log_error!(entry.name.as_str(), "panic");
@@ -115,6 +115,7 @@ pub fn plan_thread_fn(entry : PlanThreadEntry) {
             break;
         }
     }
+    log_info!(entry.name.as_str(), "stop");
 }
 
 impl PlanThreadEntry {

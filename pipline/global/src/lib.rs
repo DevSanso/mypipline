@@ -7,6 +7,7 @@ use std::sync::{LazyLock, OnceLock};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
+use std::time::SystemTime;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::exec::duckdb::create_duckdb_pair_conn_pool;
@@ -16,6 +17,7 @@ use common_rs::exec::redis::create_redis_pair_conn_pool;
 use common_rs::exec::scylla::create_scylla_pair_conn_pool;
 use common_rs::exec::odbc::create_odbc_pair_conn_pool;
 use common_rs::init::{InitConfig, LoggerConf, convert_str_to_log_level};
+use common_rs::{log_error, log_info, log_trace};
 use mypip_loader::{toml_file_loader, pair_db_loader};
 use mypip_types::config::app::AppConfig;
 use mypip_types::interface::ConfLoader;
@@ -98,7 +100,7 @@ impl GlobalStore {
                 }, conn_info.max_size)),
                 _ => Err(CommonError::new(&CommonDefaultErrorKind::NoSupport, format!("not support {}", conn_info.conn_type)))
             }?;
-
+            log_info!("pipline.global.conn", "read[{}]", conn_key.as_str());
             self.exec_pool_map.insert(conn_key.clone(), p);
         }
 
@@ -108,10 +110,18 @@ impl GlobalStore {
         let load = loader.load_plan()?;
 
         self.plans.plan.retain(|x,_| {
-            !load.plan.contains_key(x)
+            let is_del = load.plan.contains_key(x);
+            if !is_del {
+                log_info!("pipline.global.plan", "del[{}]", x.as_str());
+            }
+            is_del
         });
 
-        self.plans.plan.extend(load.plan);
+        for p in load.plan {
+            log_info!("pipline.global.plan", "read[{}]", p.0.as_str());
+            self.plans.plan.insert(p.0,p.1);
+        }
+
         Ok(())
     }
     fn reset_scripts_file(&mut self, loader : &'_ dyn ConfLoader) -> Result<(), CommonError> {
@@ -122,14 +132,25 @@ impl GlobalStore {
         self.script_data_map.retain(|x,_| {
            map.get(x).is_some() 
         });
-        
-        self.script_data_map.extend(map);
+
+        for s in map {
+            log_info!("pipline.global.script", "read[{}]", s.0.as_str());
+            self.script_data_map.insert(s.0,s.1);
+        }
         Ok(())
     }
     fn reset(&mut self, loader : &'_ dyn ConfLoader) -> Result<(), CommonError> {
+        let start = SystemTime::now();
+
         self.reset_db_pool(loader)?;
         self.reset_plan(loader)?;
         self.reset_scripts_file(loader)?;
+
+        let epel = SystemTime::now().duration_since(start).map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+        
+        log_trace!("pipline.global.reset","epel_ms", epel.as_millis() as f64);
         Ok(())
     }
 }

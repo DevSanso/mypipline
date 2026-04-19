@@ -9,7 +9,7 @@ use common_rs::logger::*;
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::th::simple::{new_simple_thread_manager, SimpleManagerKind, SimpleThreadManager};
-use crate::entry::{plan_thread_fn, PlanThreadEntry};
+use crate::entry::{plan_thread_startup_fn, PlanThreadEntry};
 use crate::types::{PlanThreadSignal, PlanThreadStateRunSet};
 use mypip_types::config::plan::PlanRoot;
 
@@ -103,6 +103,10 @@ impl PlanThreadExecutor {
         Ok(not_run)
     }
 
+    fn chk_kill_plan_thread_list<'a, V>(&'a self, alive : &'a Vec<String>, h : &'a HashMap<String, V>) -> Result<Vec<&'a String>, CommonError> {
+        Ok(alive.iter().filter(|v| {h.get(*v).is_none()}).collect::<Vec<_>>())
+    }
+
     fn next_sleep(&self) {
         let current_ms = (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() % 1000) as u64;
         let sleep_time = match (1000 - current_ms) >= 1000 {
@@ -134,6 +138,22 @@ impl PlanThreadExecutor {
                 CommonError::extend(&CommonDefaultErrorKind::Etc, "get failed interval plan", e)
             })?;
 
+            let alive = self.run_state.list().map_err(|e| {
+                CommonError::extend(&CommonDefaultErrorKind::Etc, "list failed after run", e)
+            })?;
+
+            let kill_plan = self.chk_kill_plan_thread_list(&alive, &plan).map_err(|e| {
+                CommonError::extend(&CommonDefaultErrorKind::Etc, "chk_kill_plan_thread_list", e)
+            })?;
+
+            for p in kill_plan.iter() {
+                let signal = self.signal_map.get(p.as_str()).map_err(|e| {
+                    CommonError::extend(&CommonDefaultErrorKind::Etc, "create signal failed", e)
+                })?;
+                signal.set_kill();
+                log_info!(p.as_str(), "kill signal set");
+            }
+
             for p in run_plan {
                 log_debug!("thread_executor", "start plan : {}", p);
                 let signal = self.signal_map.create(p.as_str()).map_err(|e| {
@@ -147,9 +167,11 @@ impl PlanThreadExecutor {
 
                 let entry = PlanThreadEntry::new(p.clone(), plan[&p].clone(), run_state_entry, signal);
 
-                if let Err(e) = self.manager.execute("".to_string(), &plan_thread_fn, entry) {
+                if let Err(e) = self.manager.execute("".to_string(), &plan_thread_startup_fn, entry) {
                     let log = CommonError::extend(&CommonDefaultErrorKind::InvalidApiCall, "executor failed", e);
                     log_error!("thread_executor", "{}", log);
+                } else {
+                    log_info!(p.as_str(), "start");
                 }
             }
         }
