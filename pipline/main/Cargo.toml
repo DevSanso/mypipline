@@ -18,6 +18,9 @@ mypip_types = {path = "../types"}
 mypip_thread = {path = "../thread"}
 mypip_loader = {path = "../loader"}
 
+[dev-dependencies]
+log = "0.4.29"
+simplelog = "0.12.2"
 
 [[test]]
 name = "test_main"

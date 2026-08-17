@@ -7,3 +7,6 @@ pub const PLAN_TYPE_SCRIPT : &'static str = "script";
 pub const LOADER_TYPE_FILE : &'static str = "file";
 pub const LOADER_TYPE_DB : &'static str = "db";
 pub const LOADER_TYPE_DB_TOML : &'static str = "db_toml";
+pub const LOGGER_TYPE_CONSOLE : &'static str = "console";
+pub const LOGGER_TYPE_FILE : &'static str = "file";
+pub const LOGGER_TYPE_DB : &'static str = "db";

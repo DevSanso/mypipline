@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::ops::Deref;
 use common_rs::c_core::collection::pool::get_thread_safe_pool;
 use common_rs::c_err::CommonError;
@@ -14,12 +15,13 @@ pub(crate) enum InterpreterType {
     LUA
 }
 
-impl ToString for InterpreterType {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for InterpreterType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             InterpreterType::PYTHON => String::from("python"),
             InterpreterType::LUA => String::from("lua")
-        }
+        };
+        write!(f, "{}", str)
     }
 }
 

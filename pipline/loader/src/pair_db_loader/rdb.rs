@@ -21,8 +21,6 @@ macro_rules! get_pair_db_connection {
     };
 }
 
-
-
 pub struct PairDbLoader {
     identifier : String,
     db_pool : PairExecutorPool,
@@ -36,27 +34,11 @@ pub struct PairDbLoader {
 }
 
 impl PairDbLoader {
-    pub fn new(identifier : String ,conf_path : &'_ str, load_once : bool, is_toml : bool) -> Result<Self, CommonError> {
-        let mut app_path = PathBuf::from_str(conf_path).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
-        })?;
-
-        app_path.push(identifier.as_str());
-        app_path.push("app.toml");
-
-        let data = std::fs::read_to_string(app_path).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
-        })?;
-
-        let convert : AppConfig = toml::from_str(data.as_str()).map_err(|e| {
-            CommonError::new(&CommonDefaultErrorKind::ThirdLibCallFail,e.to_string())
-        })?;
-
-        if convert.db_config.is_none() {
-            return CommonError::new(&CommonDefaultErrorKind::NoData, "not exists db config").to_result();
+    pub fn new(identifier : String ,app_config: &'_ AppConfig, load_once : bool, is_toml : bool) -> Result<Self, CommonError> {
+        if app_config.db_config.is_none() {
+            return CommonError::new(&CommonDefaultErrorKind::NoData, "db config is null").to_result();
         }
-
-        let db_conf = convert.db_config.as_ref().expect("db_config is broken");
+        let db_conf = app_config.db_config.as_ref().expect("db_config is broken");
         let conn_info = PairExecutorInfo {
             addr: vec![db_conf.db_address.clone()],
             name: db_conf.db_name.clone(),
@@ -162,22 +144,22 @@ impl PairDbLoader {
             CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "", e)
         })?;
 
-        let plan_name = utils::get_col_ref!("plan_name", &data, str)?;
-        let plan_type = utils::get_col_ref!("type", &data, str)?;
-        let interval_connection = utils::get_col_ref!("interval_connection", &data, str, null)?;
-        let interval_second = utils::get_col_ref!("interval_second", &data, i32)?;
-        let chain_id = utils::get_col_ref!("chain_id", &data, str, null)?;
-        let chain_connection = utils::get_col_ref!("chain_connection", &data, str, null)?;
-        let chain_query = utils::get_col_ref!("chain_query", &data, str, null)?;
-        let mapping_type = utils::get_col_ref!("mapping_type", &data, str, null)?;
-        let arg_data = utils::get_col_ref!("arg_data", &data, str, null)?;
-        let arg_idx = utils::get_col_ref!("arg_idx", &data, i32, null)?;
-        let bind_id = utils::get_col_ref!("bind_id", &data, str, null)?;
-        let bind_key = utils::get_col_ref!("bind_key", &data, str, null)?;
-        let bind_row = utils::get_col_ref!("bind_row", &data, i32, null)?;
-        let bind_idx = utils::get_col_ref!("bind_idx", &data, i32, null)?;
-        let script_lang = utils::get_col_ref!("script_lang", &data, str, null)?;
-        let script_file = utils::get_col_ref!("script_file", &data, str, null)?;
+        let plan_name = utils::get_col_ref!("plan_name", &data, String)?;
+        let plan_type = utils::get_col_ref!("type", &data, String)?;
+        let interval_connection = utils::get_col_ref!("interval_connection", &data, String, NULL)?;
+        let interval_second = utils::get_col_ref!("interval_second", &data, Int)?;
+        let chain_id = utils::get_col_ref!("chain_id", &data, String, NULL)?;
+        let chain_connection = utils::get_col_ref!("chain_connection", &data, String, NULL)?;
+        let chain_query = utils::get_col_ref!("chain_query", &data, String, NULL)?;
+        let mapping_type = utils::get_col_ref!("mapping_type", &data, String, NULL)?;
+        let arg_data = utils::get_col_ref!("arg_data", &data, String, NULL)?;
+        let arg_idx = utils::get_col_ref!("arg_idx", &data, Int, NULL)?;
+        let bind_id = utils::get_col_ref!("bind_id", &data, String, NULL)?;
+        let bind_key = utils::get_col_ref!("bind_key", &data, String, NULL)?;
+        let bind_row = utils::get_col_ref!("bind_row", &data, Int, NULL)?;
+        let bind_idx = utils::get_col_ref!("bind_idx", &data, Int, NULL)?;
+        let script_lang = utils::get_col_ref!("script_lang", &data, String, NULL)?;
+        let script_file = utils::get_col_ref!("script_file", &data, String, NULL)?;
 
         if !utils::vec_if_same_len!(plan_name, plan_type, interval_connection, interval_second,
             chain_connection, chain_query,
@@ -279,8 +261,8 @@ impl PairDbLoader {
             CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "", e)
         })?;
 
-        let plan_name = utils::get_col_ref!("name", &data, str)?;
-        let plan_toml = utils::get_col_ref!("toml_data", &data, str)?;
+        let plan_name : Vec<&String> = utils::get_col_ref!("name", &data, String)?;
+        let plan_toml = utils::get_col_ref!("toml_data", &data, String)?;
 
         if !utils::vec_if_same_len!(plan_name, plan_toml) {
             return CommonError::new(&CommonDefaultErrorKind::Critical, "").to_result()
@@ -328,22 +310,22 @@ impl ConfLoader for PairDbLoader {
             CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "", e)
         })?;
 
-        let max_size = utils::get_col_ref!("max_size", &data, i32)?;
-        let name = utils::get_col_ref!("name", &data, str)?;
-        let conn_type = utils::get_col_ref!("conn_type", &data, str)?;
-        let conn_name = utils::get_col_ref!("conn_name", &data, str)?;
-        let conn_user = utils::get_col_ref!("conn_user", &data, str)?;
-        let conn_addr = utils::get_col_ref!("conn_addr", &data, str)?;
-        let conn_passwd = utils::get_col_ref!("conn_passwd", &data, str)?;
-        let conn_timeout = utils::get_col_ref!("conn_timeout", &data, i32)?;
-        let odbc_driver = utils::get_col_ref!("odbc_driver", &data, str, null)?;
-        let odbc_current_time_query = utils::get_col_ref!("odbc_current_time_query", &data, str, null)?;
-        let odbc_current_time_col_name = utils::get_col_ref!("odbc_current_time_col_name", &data, str, null)?;
+        let max_size = utils::get_col_ref!("max_size", &data, BigInt)?;
+        let name = utils::get_col_ref!("name", &data, String)?;
+        let conn_type = utils::get_col_ref!("conn_type", &data, String)?;
+        let conn_name = utils::get_col_ref!("conn_name", &data, String)?;
+        let conn_user = utils::get_col_ref!("conn_user", &data, String)?;
+        let conn_addr = utils::get_col_ref!("conn_addr", &data, String)?;
+        let conn_passwd = utils::get_col_ref!("conn_passwd", &data, String)?;
+        let conn_timeout = utils::get_col_ref!("conn_timeout", &data, Int)?;
+        let odbc_driver = utils::get_col_ref!("odbc_driver", &data, String, NULL)?;
+        let odbc_current_time_query = utils::get_col_ref!("odbc_current_time_query", &data, String, NULL)?;
+        let odbc_current_time_col_name = utils::get_col_ref!("odbc_current_time_col_name", &data, String, NULL)?;
 
         if !utils::vec_if_same_len!(max_size, name, conn_type, conn_name,
             conn_user, conn_addr,conn_passwd, conn_timeout,
             odbc_driver, odbc_current_time_query, odbc_current_time_col_name) {
-            return CommonError::new(&CommonDefaultErrorKind::Critical, "").to_result()
+            return CommonError::new(&CommonDefaultErrorKind::Critical, "vec_if_same_len").to_result()
         }
 
         let mut root = ConnectionInfos::default();
@@ -403,8 +385,8 @@ impl ConfLoader for PairDbLoader {
             CommonError::extend(&CommonDefaultErrorKind::ExecuteFail, "", e)
         })?;
 
-        let script_file = utils::get_col_ref!("script_file", &data, str)?;
-        let script_data = utils::get_col_ref!("script_data", &data, str)?;
+        let script_file = utils::get_col_ref!("script_file", &data, String)?;
+        let script_data = utils::get_col_ref!("script_data", &data, String)?;
 
         if !utils::vec_if_same_len!(script_file, script_data) {
             return CommonError::new(&CommonDefaultErrorKind::Critical, "").to_result()

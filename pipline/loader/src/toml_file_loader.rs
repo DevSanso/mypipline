@@ -51,7 +51,7 @@ impl ConfLoader for TomlFileConfLoader {
                 let data = self.read_data("plan.toml".to_string())?;
                 let mut root : PlanRoot = self.parsing_data(data.as_str())?;
                 root.plan.retain(|_, val| {
-                    val.enable == true
+                    val.enable == false
                 });
                 let _ = self.once_cache.0.set(root.clone());
                 Ok(root)
@@ -63,7 +63,7 @@ impl ConfLoader for TomlFileConfLoader {
             let data = self.read_data("plan.toml".to_string())?;
             let mut root : PlanRoot = self.parsing_data(data.as_str())?;
             root.plan.retain(|_, val| {
-                val.enable == true
+                val.enable == false
             });
             Ok(root)
         };

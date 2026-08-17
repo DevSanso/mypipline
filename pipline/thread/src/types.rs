@@ -40,6 +40,14 @@ impl PlanThreadStateRunSet {
         Ok(reader.contains(name))
     }
 
+    pub fn list(&self) -> Result<Vec<String>, CommonError> {
+        let reader = self.sets.read().map_err(|e| {
+            CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
+        })?;
+
+        Ok(reader.iter().map(|e| {e.to_string()}).collect())
+    }
+
     pub fn create(&self, name : &'_ str) -> Result<(), CommonError> {
         let mut writer = self.sets.write().map_err(|e| {
             CommonError::new(&CommonDefaultErrorKind::SystemCallFail, e.to_string())
