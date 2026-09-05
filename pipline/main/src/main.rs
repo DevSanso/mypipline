@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use common_rs::c_err::CommonError;
 use common_rs::c_err::gen::CommonDefaultErrorKind;
 use common_rs::init::InitConfig;
-
+use common_rs::log_error;
 use mypip_loader::toml_file_loader;
 use mypip_types::interface::*;
 use mypip_global::GLOBAL;
@@ -22,15 +22,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         if common_rs::signal::is_set_signal(common_rs::signal::SIGINT) {
-            log_info!("main", "stop main loop");
-            cancel.cancel();
-            log_info!("main", "stop daemon thread");
+            log_info!("main", "SIGINT detected, shutting down gracefully.");
             break;
         }
 
+        let sig_li = common_rs::signal::get_set_signals(&[common_rs::signal::SIGINT, common_rs::signal::SIGTERM]);
+        if sig_li.len() > 0 {
+            log_error!("main", "process err signal interrupted :{:?}", sig_li);
+            break;
+        }
         std::thread::sleep(std::time::Duration::from_secs(10));
     }
 
+    cancel.cancel();
     GLOBAL.close()?;
     Ok(())
 }
